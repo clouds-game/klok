@@ -10,3 +10,7 @@ wheels/
 .venv
 
 uv.lock
+
+# Added by cargo
+/target
+/Cargo.lock
