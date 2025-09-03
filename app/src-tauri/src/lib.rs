@@ -1,12 +1,16 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-  format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
+#[macro_use]
+extern crate tracing;
 use serde::Serialize;
 use std::path::Path;
 use std::fs;
+use tracing::instrument;
+
+// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+#[tauri::command]
+fn greet(name: &str) -> String {
+  info!(%name, "greet called");
+  format!("Hello, {}! You've been greeted from Rust!", name)
+}
 
 #[derive(Serialize)]
 struct LyricLine {
@@ -26,8 +30,10 @@ struct Metadata {
 // Return a minimal Metadata object matching the frontend `Metadata` type.
 #[tauri::command]
 fn get_metadata(path: String) -> Result<Metadata, String> {
+  debug!(%path, "get_metadata called");
   // use provided path, fallback to bundled resource when empty
   if path.is_empty() {
+    warn!("empty path argument");
     return Err("path argument is empty".to_string());
   }
   let title = Path::new(&path)
@@ -73,10 +79,12 @@ fn get_metadata(path: String) -> Result<Metadata, String> {
     if pp.exists() {
       match fs::read_to_string(pp) {
         Ok(s) => {
+          info!(candidate = %c, "found lrc candidate and read successfully");
           lrc_content = Some(s);
           break;
         }
         Err(e) => {
+          error!(candidate = %c, error = %e, "failed to read candidate");
           return Err(format!("failed to read {}: {}", c, e));
         }
       }
@@ -85,6 +93,7 @@ fn get_metadata(path: String) -> Result<Metadata, String> {
 
   if let Some(ref s) = lrc_content {
     lyrics = parse_lrc(s);
+    info!(lines = lyrics.len(), "parsed lrc lines");
   }
 
   // If the caller explicitly passed an .lrc path and we couldn't find it, return error
@@ -104,6 +113,7 @@ fn get_metadata(path: String) -> Result<Metadata, String> {
 }
 
 // Parse LRC content into a vector of LyricLine. Handles multiple timestamps per line.
+#[instrument(level = "debug", skip(content))]
 fn parse_lrc(content: &str) -> Vec<LyricLine> {
   let mut lyrics: Vec<LyricLine> = Vec::new();
 
@@ -147,6 +157,8 @@ fn parse_lrc(content: &str) -> Vec<LyricLine> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  tracing::info!("starting klok app");
+
   tauri::Builder::default()
     .plugin(tauri_plugin_opener::init())
     .invoke_handler(tauri::generate_handler![greet, get_metadata])
