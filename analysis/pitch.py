@@ -24,7 +24,7 @@ def _save_pitch_analysis(pitches: np.ndarray, voiced_flag: np.ndarray, voiced_pr
            voiced_flag=voiced_flag, voiced_prob=voiced_prob)
 
 
-def get_audio_info(audio_path: Path) -> tuple[np.ndarray, float]:
+def get_audio_info(audio_path: Path) -> tuple[np.ndarray, float, float]:
   y, sr = librosa.load(audio_path)
   cache_path = audio_path.with_suffix('.npz')
   if cache_path.exists():
@@ -39,49 +39,86 @@ def get_audio_info(audio_path: Path) -> tuple[np.ndarray, float]:
     _save_pitch_analysis(pitches, voiced_flag, voiced_prob, cache_path)
 
   duration = librosa.get_duration(y=y, sr=sr)
-  return pitches, duration
+  # return sr so times_like can compute correct time axis
+  return pitches, sr, duration
 
 
 # %%
 
 
-def pitch_to_midi_notes(pitches: np.ndarray):
-  """将音高转换为MIDI音符"""
+def pitch_to_midi_notes(pitches: np.ndarray, sr: int, hop_length: int = 512):
+  """
+  将帧级别的频率数组转换为带持续时间的 MIDI 音符列表。
+  返回值列表项为 (start_time, end_time, midi_note)
+  """
   notes = []
-  times = librosa.times_like(pitches)
+  times = librosa.times_like(pitches, sr=sr, hop_length=hop_length)
+
+  cur_note = None
+  cur_start = None
 
   for t, pitch in zip(times, pitches):
-    if not np.isnan(pitch):
-      # 将频率转换为MIDI音符编号
-      midi_note = round(librosa.hz_to_midi(pitch))
-      # 确保音符在有效范围内
-      if 21 <= midi_note <= 108:  # 钢琴的音符范围
-        notes.append((t, midi_note))
+    if np.isnan(pitch):
+      # 遇到无声帧：若有正在进行的音符，结束它
+      if cur_note is not None:
+        notes.append((cur_start, t, cur_note))
+        cur_note = None
+        cur_start = None
+      continue
+
+    midi_note = int(round(librosa.hz_to_midi(pitch)))
+    if not (21 <= midi_note <= 108):
+      if cur_note is not None:
+        notes.append((cur_start, t, cur_note))
+        cur_note = None
+        cur_start = None
+      continue
+
+    if cur_note is None:
+      cur_note = midi_note
+      cur_start = t
+    elif midi_note != cur_note:
+      # 音高变化，结束上一个音符并开始新的
+      notes.append((cur_start, t, cur_note))
+      cur_note = midi_note
+      cur_start = t
+
+  # 文件结尾处收尾
+  if cur_note is not None:
+    notes.append((cur_start, times[-1], cur_note))
+
   return notes
 
 
-def notes_to_midi(notes: list[tuple[float, int]], output_path: Path, tempo=120):
+def notes_to_midi(notes: list[tuple[float, float, int]], output_path: Path, bpm=120):
   """将音符列表转换为MIDI文件"""
   mid = MidiFile()
   track = MidiTrack()
   mid.tracks.append(track)
 
   # 设置速度 (微秒/拍)
-  track.append(mido.MetaMessage('set_tempo', tempo=mido.bpm2tempo(tempo)))
+  track.append(mido.MetaMessage('set_tempo', tempo=mido.bpm2tempo(bpm)))
   track.append(Message('program_change', program=0, time=0))  # 0 = 钢琴音色
 
-  prev_time = 0
-  for time, note in notes:
-    # 计算时间差 (转换为 ticks)
-    delta = time - prev_time
-    ticks = int(mido.second2tick(delta, mid.ticks_per_beat, mido.bpm2tempo(tempo)))
+  prev_time = 0.0
+  tempo_us = mido.bpm2tempo(bpm)
+  for start, end, note in notes:
+    # delta from previous event to this note_on (in seconds)
+    delta = max(0.0, start - prev_time)
+    ticks = int(mido.second2tick(delta, mid.ticks_per_beat, tempo_us))
 
-    # 音符开启
+    # note_on
     track.append(Message('note_on', note=note, velocity=64, time=ticks))
-    # 简单设置音符持续时间 (实际应用中需要更复杂的计算)
-    track.append(Message('note_off', note=note, velocity=64, time=100))
 
-    prev_time = time
+    # note_off after duration
+    duration = max(0.0, end - start)
+    off_ticks = int(mido.second2tick(duration, mid.ticks_per_beat, tempo_us))
+    # ensure at least 1 tick for audible note
+    if off_ticks <= 0:
+      off_ticks = 1
+    track.append(Message('note_off', note=note, velocity=64, time=off_ticks))
+
+    prev_time = end
 
   mid.save(output_path)
   return output_path
@@ -122,9 +159,16 @@ def show_pitch(pitch: np.ndarray, duration: float):
 
 
 # %%
-audio_path = Path(__file__).parent.parent.joinpath("res/我的一个道姑朋友.mp3")
-pitches, duration = get_audio_info(audio_path)
-notes = pitch_to_midi_notes(pitches)
-midi_path = audio_path.with_suffix('.midi')
+def mp3_to_midi(audio_path: Path):
+  pitches, sr, duration = get_audio_info(audio_path)
+  notes = pitch_to_midi_notes(pitches, sr)
+  midi_path = audio_path.with_suffix('.mid')
+  notes_to_midi(notes, midi_path)
+
+# %%
+audio_path = Path(__file__).parent.parent.joinpath("res/vocals.mp3")
+pitches, sr, duration = get_audio_info(audio_path)
+notes = pitch_to_midi_notes(pitches, sr)
+midi_path = audio_path.with_suffix('.mid')
 notes_to_midi(notes, midi_path)
 # %%
