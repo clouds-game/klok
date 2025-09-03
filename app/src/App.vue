@@ -1,24 +1,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
-
-type LyricLine = { time: number; text: string }
+import { sample } from './samples'
 
 const audioRef = ref<HTMLAudioElement | null>(null)
 const fileUrl = ref<string | null>(null)
 const isPlaying = ref(false)
-const duration = ref(0)
+const duration = ref(sample.duration || 0)
 const currentTime = ref(0)
 const volume = ref(1)
 
 // Example lyrics (seconds)
-const lyrics = ref<LyricLine[]>([
-  { time: 0, text: '（Instrumental intro）' },
-  { time: 6, text: '我 有 一 个 道 姑 朋 友' },
-  { time: 12, text: '她 在 云 间 游 戏' },
-  { time: 20, text: '轻 轻 唱 着 古 老 的 歌' },
-  { time: 28, text: '风 吹 过 山 河' },
-  { time: 36, text: '月 光 照 在 她 的 眉 间' },
-])
+const lyrics = ref<LyricLine[]>(Array.from(sample.lyrics))
 
 const activeIndex = computed(() => {
   const t = currentTime.value
@@ -81,16 +73,16 @@ function setVolume(v: number) {
   if (audioRef.value) audioRef.value.volume = v
 }
 
-// Auto-scroll lyrics
+// Auto-scroll lyrics (center active line in the scrollable subarea)
 const lyricsContainer = ref<HTMLElement | null>(null)
 watch(activeIndex, async (idx) => {
   await nextTick()
   if (!lyricsContainer.value) return
-  const el = lyricsContainer.value.querySelectorAll('.lyric-line')[idx] as HTMLElement | undefined
+  const nodes = lyricsContainer.value.querySelectorAll('.lyric-line')
+  const el = nodes[idx] as HTMLElement | undefined
   if (el) {
-    const container = lyricsContainer.value
-    const offset = el.offsetTop - container.clientHeight / 2 + el.clientHeight / 2
-    container.scrollTo({ top: offset, behavior: 'smooth' })
+    // use scrollIntoView with block: 'center' to center the active line inside the container
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 })
 
@@ -140,13 +132,16 @@ function formatTime(v: number | { value: number } | null | undefined) {
       ></audio>
     </section>
 
-    <section class="flex-1 bg-[rgba(255,255,255,0.03)] p-4 rounded-lg overflow-auto" ref="lyricsContainer">
-      <ul class="p-0 m-0 list-none">
-        <li v-for="(line, i) in lyrics" :key="i" class="py-2 px-3 rounded flex gap-3 items-center" :class="i === activeIndex ? 'bg-gradient-to-r from-[rgba(255,107,107,0.12)] to-[rgba(255,107,107,0.04)] text-white font-semibold' : 'text-muted'">
-          <span class="w-16 text-[12px]">{{ formatTime(line.time) }}</span>
-          <span class="flex-1">{{ line.text }}</span>
-        </li>
-      </ul>
+    <section class="flex-1 bg-[rgba(255,255,255,0.03)] p-4 rounded-lg">
+      <!-- scrollable lyrics subarea -->
+      <div class="h-[80vh] overflow-auto" ref="lyricsContainer">
+        <ul class="p-0 m-0 list-none">
+          <li v-for="(line, i) in lyrics" :key="i" class="py-2 px-3 rounded flex gap-3 items-center" :class="[i === activeIndex ? 'bg-gradient-to-r from-[rgba(255,107,107,0.12)] to-[rgba(255,107,107,0.04)] text-white font-semibold' : 'text-muted', { active: i === activeIndex }]">
+            <span class="w-16 text-[12px]">{{ formatTime(line.time) }}</span>
+            <span class="flex-1">{{ line.text }}</span>
+          </li>
+        </ul>
+      </div>
     </section>
   </main>
 </template>
