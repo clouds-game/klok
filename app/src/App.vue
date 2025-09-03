@@ -82,7 +82,7 @@ onMounted(() => {
   // if there's a bundled resource, you could pre-load it here
   ;(async () => {
     try {
-      const md = await invoke('get_metadata')
+      const md = await invoke('get_metadata', { path: fileUrl.value ?? "/res/我的一个道姑朋友.mp3" })
       metadata.value = md as Metadata
       if (metadata.value?.duration) {
         duration.value = metadata.value.duration
