@@ -5,6 +5,26 @@ use tauri::{WindowEvent, Position, PhysicalPosition, LogicalPosition};
 use std::env;
 use std::path::PathBuf;
 
+// Simple application state exposed to Tauri commands/pages. Holds the resolved
+// path to the `res` directory so Rust-side code can reliably locate bundled
+// resources (audio, lyrics, etc.). Clone is derived so it can be cheaply
+// shared into the Tauri managed state.
+#[derive(Clone, Debug)]
+pub struct AppState {
+  pub res_dir: PathBuf,
+}
+
+impl AppState {
+  pub fn resolve<S: AsRef<str>>(&self, path: S) -> Option<PathBuf> {
+    let result = self.res_dir.join(path.as_ref());
+    if result.exists() {
+      Some(result)
+    } else {
+      None
+    }
+  }
+}
+
 pub mod commands;
 pub use commands::get_metadata::get_metadata;
 
@@ -26,6 +46,14 @@ pub fn run() {
   tracing::info!("starting klok app");
 
   tauri::Builder::default()
+    // manage application-level shared state
+    .manage(
+      {
+        let res_dir = env::current_dir().map(|d| d.join("../../res")).unwrap_or_else(|_| PathBuf::from("res"));
+        info!(?res_dir, "resolved res directory");
+        AppState { res_dir }
+      }
+    )
     .plugin(tauri_plugin_opener::init())
     // restore saved window position when the page loads
     .on_page_load(|webview, _| {

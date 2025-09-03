@@ -1,6 +1,10 @@
 use std::path::Path;
+use tauri::State;
 
 use serde::Serialize;
+use lofty::{Accessor, Probe, AudioFile, TaggedFileExt};
+
+const COMMON_EXT: [&str; 3] = ["mp3", "m4a", "flac"];
 
 
 #[derive(Serialize)]
@@ -20,7 +24,7 @@ pub struct Metadata {
 
 // Return a minimal Metadata object matching the frontend `Metadata` type.
 #[tauri::command]
-pub fn get_metadata(path: String) -> Result<Metadata, String> {
+pub fn get_metadata(state: State<'_, crate::AppState>, path: String) -> Result<Metadata, String> {
   debug!(%path, "get_metadata called");
   // use provided path, fallback to bundled resource when empty
   if path.is_empty() {
@@ -38,49 +42,37 @@ pub fn get_metadata(path: String) -> Result<Metadata, String> {
 
   // no longer using a helper closure here
 
-  // Build candidate paths
-  let mut candidates: Vec<String> = Vec::new();
-  // If url looks like /res/name.mp3 or res/name.mp3, replace ext with .lrc
-  if path.ends_with(".mp3") {
-    if let Some(pos) = path.rfind('/') {
-      let name = &path[pos + 1..];
-      let lrc_name = name.trim_end_matches(".mp3").to_string() + ".lrc";
-      candidates.push(format!("res/{}", lrc_name));
-      candidates.push(lrc_name.clone());
-      // relative up-one and up-two
-      candidates.push(format!("../res/{}", lrc_name));
-      candidates.push(format!("../../res/{}", lrc_name));
-      // also try with leading slash removed from url replaced
-      let no_lead = path.trim_start_matches('/').to_string();
-      candidates.push(no_lead.trim_end_matches(".mp3").to_string() + ".lrc");
-    } else {
-      candidates.push(path.trim_end_matches(".mp3").to_string() + ".lrc");
-    }
-  }
-
-  // If path argument looks like an .lrc, try it first
-  if path.ends_with(".lrc") {
-    candidates.insert(0, path.clone());
-  }
-
-  // Try to read any candidate; if a candidate exists but fails to read, return an error.
-  let mut lrc_content: Option<String> = None;
-  for c in &candidates {
-    let pp = Path::new(c);
-    if pp.exists() {
-      match std::fs::read_to_string(pp) {
-        Ok(s) => {
-          info!(candidate = %c, "found lrc candidate and read successfully");
-          lrc_content = Some(s);
-          break;
-        }
-        Err(e) => {
-          error!(candidate = %c, error = %e, "failed to read candidate");
-          return Err(format!("failed to read {}: {}", c, e));
-        }
+  let base_name = if path.ends_with(".lrc") {
+    path.trim_end_matches(".lrc").to_string()
+  } else {
+    let mut result = None;
+    for ext in COMMON_EXT.iter() {
+      if path.ends_with(ext) {
+        let bn = path.trim_end_matches(&format!(".{ext}")).to_string();
+        result = Some(bn);
       }
     }
-  }
+    result.unwrap_or_else(|| path.to_string())
+  };
+
+  // Build candidate paths
+  let lrc_resolved_path = state.resolve(base_name + ".lrc");
+
+  // Try to read any candidate; if a candidate exists but fails to read, return an error.
+  let lrc_content = if let Some(lrc_resolved_path) = lrc_resolved_path {
+    debug!(lrc_resolved_path = %lrc_resolved_path.display(), "resolved lrc path");
+    match std::fs::read_to_string(&lrc_resolved_path) {
+      Ok(s) => {
+        Some(s)
+      }
+      Err(e) => {
+        error!(lrc_resolved_path = %lrc_resolved_path.display(), error = %e, "failed to read candidate");
+        return Err(format!("failed to read {}: {}", lrc_resolved_path.display(), e));
+      }
+    }
+  } else {
+    None
+  };
 
   if let Some(ref s) = lrc_content {
     lyrics = parse_lrc(s);
@@ -100,7 +92,19 @@ pub fn get_metadata(path: String) -> Result<Metadata, String> {
     ];
   }
 
-  Ok(Metadata { title, artist: "未知".to_string(), url: path, duration: 260.0, lyrics })
+  // Attempt to extract duration and tags from the audio file when possible.
+  let mut duration_secs = lyrics.last().map(|l| l.time).unwrap_or(0.0) + 10.0;
+  let mut artist = "未知".to_string();
+
+  let mp3_path = state.resolve(&path);
+  if let Some(mp3_path) = mp3_path {
+    if let Some((d, a)) = get_duration_and_artist(&mp3_path) {
+      duration_secs = d;
+      artist = a;
+    }
+  }
+
+  Ok(Metadata { title, artist, url: path, duration: duration_secs, lyrics })
 }
 
 // Parse LRC content into a vector of LyricLine. Handles multiple timestamps per line.
@@ -144,4 +148,41 @@ fn parse_lrc(content: &str) -> Vec<LyricLine> {
 
   lyrics.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
   lyrics
+}
+
+// Probe audio candidates derived from `path` and return duration (secs) and artist when found.
+fn get_duration_and_artist<P: AsRef<Path>>(path: P) -> Option<(f64, String)> {
+  let path = path.as_ref();
+  if path.exists() {
+    match Probe::open(path) {
+      Ok(probe) => match probe.read() {
+        Ok(tagged) => {
+          // duration from properties
+          let props = tagged.properties();
+          let d = props.duration().as_secs_f64();
+
+          // try to get artist from primary tag (uses Accessor trait)
+          let mut artist = "未知".to_string();
+          if let Some(tag) = tagged.primary_tag() {
+            if let Some(a) = tag.artist() {
+              artist = a.to_string();
+            }
+          }
+
+          Some((d, artist))
+        }
+        Err(e) => {
+          // ignore and try next candidate
+          error!(candidate = %path.display(), error = %e, "failed to read audio with lofty");
+          return None;
+        }
+      },
+      Err(e) => {
+        error!(candidate = %path.display(), error = %e, "failed to open audio candidate");
+        return None;
+      }
+    }
+  } else {
+    None
+  }
 }
