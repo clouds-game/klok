@@ -12,6 +12,11 @@ wheels/
 .DS_Store
 
 uv.lock
+
+*.npz
+*.midi
+*.mid
+
 pnpm-lock.yaml
 yarn.lock
 package-lock.json
