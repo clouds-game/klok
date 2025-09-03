@@ -9,4 +9,14 @@ wheels/
 # Virtual environments
 .venv
 
+.DS_Store
+
 uv.lock
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+bun.lock
+
+# Added by cargo
+/target
+/Cargo.lock

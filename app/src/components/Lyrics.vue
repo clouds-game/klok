@@ -1,0 +1,28 @@
+<script setup lang="ts">
+import { ref, watch, nextTick, defineProps } from 'vue'
+import { formatTime } from '../utils/time'
+
+const props = defineProps<{ lyrics: LyricLine[]; activeIndex: number }>()
+const container = ref<HTMLElement | null>(null)
+
+watch(() => props.activeIndex, async (idx) => {
+  await nextTick()
+  if (!container.value) return
+  const nodes = container.value.querySelectorAll('.lyric-line')
+  const el = nodes[idx] as HTMLElement | undefined
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+})
+
+</script>
+<template>
+  <div class="h-[80vh] overflow-auto" ref="container">
+    <ul class="p-0 m-0 list-none">
+      <li v-for="(line, i) in props.lyrics" :key="i" class="lyric-line py-2 px-3 rounded flex gap-3 items-center" :class="[i === props.activeIndex ? 'bg-gradient-to-r from-[rgba(255,107,107,0.12)] to-[rgba(255,107,107,0.04)] text-white font-semibold' : 'text-muted', { active: i === props.activeIndex }]">
+        <span class="w-16 text-[12px]">{{ formatTime(line.time) }}</span>
+        <span class="flex-1">{{ line.text }}</span>
+      </li>
+    </ul>
+  </div>
+</template>
+
+<!-- formatTime imported from ../utils/time -->
