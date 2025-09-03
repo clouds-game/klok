@@ -1,19 +1,21 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
-import { sample } from './samples'
 import Controller from './components/Controller.vue'
 import Lyrics from './components/Lyrics.vue'
 import Playlist from './components/Playlist.vue'
+import { invoke } from '@tauri-apps/api/core'
 
 const audioRef = ref<HTMLAudioElement | null>(null)
 const fileUrl = ref<string | null>(null)
 const isPlaying = ref(false)
-const duration = ref(sample.duration || 0)
+const duration = ref(0)
 const currentTime = ref(0)
 const volume = ref(1)
 
+const metadata = ref<Metadata | null>(null)
+
 // Example lyrics (seconds)
-const lyrics = ref<LyricLine[]>(Array.from(sample.lyrics))
+const lyrics = computed(() => Array.from(metadata.value?.lyrics || []))
 
 const activeIndex = computed(() => {
   const t = currentTime.value
@@ -78,6 +80,18 @@ function setVolume(v: number) {
 
 onMounted(() => {
   // if there's a bundled resource, you could pre-load it here
+  ;(async () => {
+    try {
+      const md = await invoke('get_metadata')
+      metadata.value = md as Metadata
+      if (metadata.value?.duration) {
+        duration.value = metadata.value.duration
+      }
+    } catch (e) {
+      // ignore, optional
+      console.warn('get_metadata failed', e)
+    }
+  })()
 })
 
 function onEnded() {
@@ -101,7 +115,7 @@ function onEnded() {
       ></audio>
 
       <div class="mt-4">
-        <Playlist :items="[{ title: sample.title, artist: sample.artist, url: sample.url }]" />
+        <Playlist :items="[{ title: metadata?.title ?? '', artist: metadata?.artist, url: metadata?.url }]" />
       </div>
     </section>
 
