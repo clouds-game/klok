@@ -1,5 +1,5 @@
 [project]
-name = "entertainment"
+name = "klok"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -9,4 +9,5 @@ dependencies = [
     "ipykernel>=6.30.1",
     "librosa>=0.11.0",
     "matplotlib>=3.10.6",
+    "mido>=1.3.3",
 ]
