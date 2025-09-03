@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { sample } from './samples'
+import Controller from './components/Controller.vue'
+import Lyrics from './components/Lyrics.vue'
+import Playlist from './components/Playlist.vue'
 
 const audioRef = ref<HTMLAudioElement | null>(null)
 const fileUrl = ref<string | null>(null)
@@ -73,19 +76,6 @@ function setVolume(v: number) {
   if (audioRef.value) audioRef.value.volume = v
 }
 
-// Auto-scroll lyrics (center active line in the scrollable subarea)
-const lyricsContainer = ref<HTMLElement | null>(null)
-watch(activeIndex, async (idx) => {
-  await nextTick()
-  if (!lyricsContainer.value) return
-  const nodes = lyricsContainer.value.querySelectorAll('.lyric-line')
-  const el = nodes[idx] as HTMLElement | undefined
-  if (el) {
-    // use scrollIntoView with block: 'center' to center the active line inside the container
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }
-})
-
 onMounted(() => {
   // if there's a bundled resource, you could pre-load it here
 })
@@ -94,34 +84,13 @@ function onEnded() {
   isPlaying.value = false
 }
 
-function formatTime(v: number | { value: number } | null | undefined) {
-  const t = typeof v === 'number' ? v : (v && typeof (v as any).value === 'number' ? (v as any).value : 0)
-  if (!isFinite(t) || t <= 0) return '0:00'
-  const minutes = Math.floor(t / 60)
-  const seconds = Math.floor(t % 60)
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
 </script>
 
 <template>
   <main class="flex gap-6 p-6 min-h-screen bg-gradient-to-b from-bg1 to-bg2 text-text box-border">
     <section class="w-[360px] bg-panel p-4 rounded-lg shadow-[0_6px_18px_rgba(2,6,23,0.6)]">
-      <div class="flex items-center justify-between gap-3">
-        <label class="border border-muted px-3 py-2 rounded cursor-pointer inline-flex items-center">
-          Load audio
-          <input class="hidden" type="file" accept="audio/*" @change="loadFile" />
-        </label>
-        <div class="flex items-center gap-3">
-          <button class="bg-primary text-white px-3 py-2 rounded" @click="togglePlay">{{ isPlaying ? 'Pause' : 'Play' }}</button>
-          <div class="text-muted text-sm">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</div>
-        </div>
-      </div>
-
-      <input class="w-full mt-3" type="range" min="0" :max="duration" step="0.01" :value="currentTime" @input="(e) => seekTo(Number((e.target as HTMLInputElement).value))" />
-
-      <div class="mt-3 text-muted text-sm">
-        <label>Volume <input type="range" min="0" max="1" step="0.01" :value="volume" @input="(e) => setVolume(Number((e.target as HTMLInputElement).value))" /></label>
-      </div>
+      <Controller :isPlaying="isPlaying" :currentTime="currentTime" :duration="duration" :volume="volume"
+        @toggle-play="togglePlay" @seek-to="seekTo" @set-volume="setVolume" @load-file="loadFile" />
 
       <audio
         ref="audioRef"
@@ -130,18 +99,14 @@ function formatTime(v: number | { value: number } | null | undefined) {
         @loadedmetadata="onLoadedMetadata"
         @ended="onEnded"
       ></audio>
+
+      <div class="mt-4">
+        <Playlist :items="[{ title: sample.title, artist: sample.artist, url: sample.url }]" />
+      </div>
     </section>
 
     <section class="flex-1 bg-[rgba(255,255,255,0.03)] p-4 rounded-lg">
-      <!-- scrollable lyrics subarea -->
-      <div class="h-[80vh] overflow-auto" ref="lyricsContainer">
-        <ul class="p-0 m-0 list-none">
-          <li v-for="(line, i) in lyrics" :key="i" class="py-2 px-3 rounded flex gap-3 items-center" :class="[i === activeIndex ? 'bg-gradient-to-r from-[rgba(255,107,107,0.12)] to-[rgba(255,107,107,0.04)] text-white font-semibold' : 'text-muted', { active: i === activeIndex }]">
-            <span class="w-16 text-[12px]">{{ formatTime(line.time) }}</span>
-            <span class="flex-1">{{ line.text }}</span>
-          </li>
-        </ul>
-      </div>
+      <Lyrics :lyrics="lyrics" :activeIndex="activeIndex" />
     </section>
   </main>
 </template>
