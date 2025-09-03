@@ -122,8 +122,22 @@ def plot_pitch_timeline(notes: Iterable[Dict], title: Optional[str] = None) -> N
   plt.tight_layout()
   plt.show()
 
-# %%
 
+def hist_notes(mid: mido.MidiFile) -> Dict[int, int]:
+  """统计 MIDI 文件中每个音符出现的次数，返回 {note_number: count}。"""
+  counts: Dict[int, int] = {}
+  for track in mid.tracks:
+    for msg in track:
+      if msg.type == 'note_on' and msg.velocity > 0:
+        counts[msg.note] = counts.get(msg.note, 0) + 1
+  plt.hist(list(counts.keys()), weights=list(counts.values()), align='left', rwidth=0.8, )
+  plt.xlabel('MIDI Note Number')
+  plt.ylabel('Count')
+  plt.title('MIDI Note Histogram')
+  plt.grid(axis='y', linestyle='--', alpha=0.7)
+  plt.show()
+
+# %%
 
 midi_path = Path("D:/tmp/AnyConv.com__vocals.midi")
 midi_path2 = Path("D:/WorkSpace/klok/res/vocals.mid")
@@ -138,5 +152,6 @@ print(mid.ticks_per_beat)
 print(mid2.ticks_per_beat)
 print(mid.tracks[0])
 print(mid2.tracks[0])
-
+hist_notes(mid)
+hist_notes(mid2)
 # %%
