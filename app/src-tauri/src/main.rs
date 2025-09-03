@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    klok_app_lib::run()
+  klok_app_lib::run()
 }
