@@ -59,7 +59,7 @@ onMounted(() => {
         <Lyrics :lyrics="state.lyrics" :activeIndex="state.activeIndex" />
       </div>
       <div class="flex-1 mt-4 h-[20vh]">
-        <MidiView :notes="state.notes || []" />
+        <MidiView :notes="state.notes || []" :left_time="state.activeLeftTime" :right_time="state.activeRightTime" />
       </div>
     </section>
   </main>

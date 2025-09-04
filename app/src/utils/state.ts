@@ -102,6 +102,16 @@ export const useAppState = defineStore('app', () => {
     return 0
   })
 
+  const activeLeftTime = computed(() => {
+    return lyrics.value[activeIndex.value]?.time || 0
+  })
+  const activeRightTime = computed(() => {
+    if (activeIndex.value + 1 < lyrics.value.length) {
+      return (lyrics.value[activeIndex.value + 1]?.time || duration.value)
+    }
+    return duration.value
+  })
+
   const togglePlay = (b?: boolean) => { isPlaying.value = b !== undefined ? b : !isPlaying.value }
   const seekTo = (v: number) => { console.log("seekTo", v); currentTime.value = v }
   const setVolume = (v: number) => { volume.value = v }
@@ -116,13 +126,15 @@ export const useAppState = defineStore('app', () => {
     currentTime,
     volume,
     metadata,
-  notes,
+    notes,
     lyrics,
     activeIndex,
+    activeLeftTime,
+    activeRightTime,
     setTitle,
     loadMetadata,
     loadAudio,
-  loadMidi,
+    loadMidi,
     togglePlay,
     seekTo,
     setVolume,

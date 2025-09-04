@@ -24,5 +24,3 @@ watch(() => props.activeIndex, async (idx) => {
     </ul>
   </div>
 </template>
-
-<!-- formatTime imported from ../utils/time -->

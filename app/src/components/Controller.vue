@@ -124,5 +124,3 @@ watch(() => props.volume, (v) => {
     </media-player>
   </div>
 </template>
-
-<!-- formatTime imported from ../utils/time -->
