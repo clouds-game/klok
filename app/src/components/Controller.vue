@@ -78,6 +78,7 @@ function onProgressClick(e: MouseEvent) {
     <!-- <audio :src="props.src"></audio>
     <div>hello</div> -->
     <media-player
+      :src="props.src"
       crossorigin
       playsinline
       :current-time="props.currentTime"
@@ -90,9 +91,7 @@ function onProgressClick(e: MouseEvent) {
       @seeked="onSeek"
       class="block"
     >
-      <media-provider class="hidden">
-        <source :src="props.src" type="audio/m4a"></source>
-      </media-provider>
+      <media-provider class="hidden"></media-provider>
       <div class="flex items-center gap-4">
         <!-- Play / Pause -->
         <media-play-button class="vds-button group">
