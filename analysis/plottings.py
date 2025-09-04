@@ -71,3 +71,17 @@ def show_pitch(pitches: np.ndarray, sr: int, max_duration: float | None = None):
   ax.xaxis.set_major_formatter(FuncFormatter(_mmss))
 
   fig.tight_layout()
+
+def show_mel(y: ArrayLike, sr: int, name: str = None):
+  import librosa
+
+  S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
+  S_dB = librosa.power_to_db(S, ref=np.max)
+
+  # 显示 Mel 频谱图
+  plt.figure(figsize=(10, 4))
+  librosa.display.specshow(S_dB, sr=sr, x_axis='time', y_axis='mel', fmax=8000)
+  plt.colorbar(format='%+2.0f dB')
+  plt.title('Mel Spectrogram')
+  plt.tight_layout()
+  plt.show()

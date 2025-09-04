@@ -6,6 +6,7 @@
 import librosa
 import numpy as np
 from pathlib import Path
+from plottings import show_mel
 
 workspace_dir = Path(__file__).parent.parent
 
@@ -77,26 +78,7 @@ def separate_audio(audio_path: Path,
 sources = separate_audio(audio_path, model_name="mdx_extra", device="mps")
 
 # %%
-import matplotlib.pyplot as plt
-
-def show(audio_path: Path):
-  y, sr = librosa.load(str(audio_path), sr=None)
-
-  S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
-  S_dB = librosa.power_to_db(S, ref=np.max)
-
-  # 显示 Mel 频谱图
-  plt.figure(figsize=(10, 4))
-  librosa.display.specshow(S_dB, sr=sr, x_axis='time', y_axis='mel', fmax=8000)
-  plt.colorbar(format='%+2.0f dB')
-  plt.title('Mel Spectrogram')
-  plt.tight_layout()
-  plt.show()
-
-#%%
-vocals_path = workspace_dir / f"res/{audio_base_name}_vocals.mp3"
-
-show(audio_path)
-show(vocals_path)
+show_mel(y, sr=sr, name=audio_path.name)
+show_mel(sources['vocals'], sr=sr, name=audio_path.name + "_vocals")
 
 #%%
