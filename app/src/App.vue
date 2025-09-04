@@ -68,7 +68,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 <template>
   <main class="flex gap-6 p-6 min-h-screen bg-gradient-to-b from-bg1 to-bg2 text-text box-border">
     <section class="w-[360px] bg-panel p-4 rounded-lg shadow-[0_6px_18px_rgba(2,6,23,0.6)]">
-      <Controller :src="state.streamUrl!" :isPlaying="state.isPlaying" :currentTime="state.currentTime" :duration="state.duration" :volume="state.volume" :title="state.title"
+      <Controller :src="state.streamUrl!" :src2="state.vocalUrl!" :isPlaying="state.isPlaying" :currentTime="state.currentTime" :duration="state.duration" :volume="state.volume" :title="state.title"
         @set-volume="state.setVolume"
         @seek-to="state.seekTo"
         @time-update="state.seekTo"
@@ -87,7 +87,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </div>
     </section>
 
-    <section class="flex flex-col flex-1 bg-[rgba(255,255,255,0.03)] p-4 rounded-lg">
+    <section class="flex flex-col flex-1 bg-[rgba(255,255,255,0.03)] p-4 rounded-lg max-h-[calc(100vh-48px)]">
       <div class="flex-1 h-[60vh]">
         <Lyrics :lyrics="state.lyrics" :activeIndex="state.activeIndex" @seek-to="t => state.seekTo(t)" />
       </div>

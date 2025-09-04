@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, nextTick } from 'vue'
-import { base64ToDataUrl } from './time'
+import { resolveAudioUrl } from './time'
 
 // MIDI note representation (matches Rust `Note` returned from `load_midi`)
 type MidiNote = {
@@ -17,6 +17,7 @@ export const useAppState = defineStore('app', () => {
   const fileUrl = ref<string | null>(null)
   const _title = ref<string | null>(null)
   const streamUrl = ref<string | null>(null)
+  const vocalUrl = ref<string | null>(null)
   const isPlaying = ref(false)
   const duration = ref(1)
   const currentTime = ref(0)
@@ -83,12 +84,12 @@ export const useAppState = defineStore('app', () => {
     // fetch audio content from rust backend as data URL for bundled resource
     // store it in `streamUrl` so we don't overwrite any user-selected `fileUrl`
     try {
-      const data = await invoke('load_audio', { path: newUrl }) as string
-      if (data.startsWith("data:")) {
-        streamUrl.value = base64ToDataUrl(data)
-      } else {
-        streamUrl.value = data
-      }
+      const name = newUrl.split(".")[0]
+
+      const accompanyData = await invoke('load_audio', { path: `${name}_non_vocals.mp3` }) as string
+      const vocalData = await invoke('load_audio', { path: `${name}_vocals.mp3` }) as string
+      streamUrl.value = resolveAudioUrl(accompanyData)
+      vocalUrl.value = resolveAudioUrl(vocalData)
     } catch (e) {
       // fallback: keep using builtin file name
       console.warn('load_audio failed', e)
@@ -174,6 +175,7 @@ export const useAppState = defineStore('app', () => {
     title,
     fileUrl,
     streamUrl,
+    vocalUrl,
     isPlaying,
     duration,
     currentTime,

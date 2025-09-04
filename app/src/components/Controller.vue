@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // register vidstack web components
-import { type MediaPlayerElement } from 'vidstack/elements'
+import { MediaToggleButtonElement, type MediaPlayerElement } from 'vidstack/elements'
 import 'vidstack/bundle'
 import 'vidstack/icons'
 import { defineEmits, defineProps, ref, watch } from 'vue'
 
-const props = defineProps<{ title: string, src?: string, isPlaying: boolean; currentTime: number; duration: number; volume: number }>()
+const props = defineProps<{ title: string, src?: string, src2?: string, isPlaying: boolean; currentTime: number; duration: number; volume: number }>()
 const emit = defineEmits<{
   (e: 'seek-to', v: number): void
   (e: 'set-volume', v: number): void
@@ -17,6 +17,9 @@ const emit = defineEmits<{
 
 // underlying custom element <media-player>
 const player = ref<MediaPlayerElement | null>(null)
+const vocalAudio = ref<HTMLAudioElement | null>(null)
+const toggleButton = ref<MediaToggleButtonElement | null>(null)
+const playoriginal = ref<boolean>(true)
 
 // volume slider not yet implemented inside this component (parent handles volume UI)
 
@@ -29,6 +32,15 @@ function handleTimeUpdate() {
   emit('time-update', ct)
 }
 
+function handleSeeked() {
+    console.log("Seeked:", player.value?.currentTime)
+    if (player.value?.currentTime == null) return
+    const ct = player.value.currentTime
+    emit('seek-to', ct)
+    if (vocalAudio.value)
+      vocalAudio.value.currentTime = ct
+}
+
 function handleLoadedMetadata() {
   if (!player.value) return
   // @ts-ignore custom element exposes duration
@@ -37,39 +49,50 @@ function handleLoadedMetadata() {
 }
 
 function handlePlay(v: boolean) {
+  if (v) {
+    vocalAudio.value?.play()
+  } else {
+    vocalAudio.value?.pause()
+  }
   emit('play-state', v)
 }
 
-function onProgressClick(e: MouseEvent) {
-  const target = e.currentTarget as HTMLElement
-  const rect = target.getBoundingClientRect()
-  const ratio = (e.clientX - rect.left) / rect.width
-  const newTime = (props.duration || 0) * Math.max(0, Math.min(1, ratio))
-  emit('seek-to', newTime)
+function toggleOriginal() {
+  playoriginal.value = toggleButton.value?.pressed ?? !playoriginal.value
+  if (vocalAudio.value) {
+    vocalAudio.value.muted = playoriginal.value
+  }
 }
 
 // react to parent state changes
 watch(() => props.isPlaying, (val) => {
   const el = player.value
-  if (!el) return
+  const a = vocalAudio.value
+  if (!el || !a) return
   if (val && el.paused) {
     el.currentTime = props.currentTime // sync time before play
+    a.currentTime = props.currentTime
     el.play?.()
+    if (playoriginal.value) a.play?.()
   }
-  else if (!val && !el.paused) el.pause?.()
+  else if (!val && !el.paused) {
+    el.pause?.()
+    a.pause?.()
+  }
 }, { immediate: true })
 
 watch(() => props.volume, (v) => {
   const el = player.value
-  if (!el) return
-  el.volume = v
+  const a = vocalAudio.value
+  if (el) el.volume = v
+  if (a) a.volume = v
 }, { immediate: true })
+
 </script>
 
 <template>
   <div class="controller w-full select-none">
-    <!-- <audio :src="props.src"></audio>
-    <div>hello</div> -->
+    <audio ref="vocalAudio" controls :src="props.src2" volume="0.5" preload="metadata"></audio>
     <media-player
       crossorigin
       playsinline
@@ -81,8 +104,8 @@ watch(() => props.volume, (v) => {
       @loadedmetadata="handleLoadedMetadata"
       @play="handlePlay(true)"
       @pause="handlePlay(false)"
-      @seeking="handleTimeUpdate"
-      @seeked="handleTimeUpdate"
+      @seeking="handleSeeked"
+      @seeked="handleSeeked"
       class="block"
     >
       <!--@timeupdate and @progress would never emit -->
@@ -99,7 +122,7 @@ watch(() => props.volume, (v) => {
         </media-play-button>
 
         <!-- Progress (click to seek) -->
-        <media-time-slider class="vds-time-slider vds-slider" @click="onProgressClick" @value-change="handleTimeUpdate" @pointer-value-change="handleTimeUpdate">
+        <media-time-slider class="vds-time-slider vds-slider" @value-change="handleTimeUpdate" @pointer-value-change="handleTimeUpdate">
           <!-- See https://vidstack.io/docs/wc/player/components/sliders/time-slider/?styling=default-theme -->
           <!-- only @pointer-value-change works, @value-change would not emit -->
           <div class="vds-slider-track"></div>
@@ -123,6 +146,10 @@ watch(() => props.volume, (v) => {
           <media-icon type="volume-low" class="volume-low-icon vds-icon hidden group-data-[state='low']:block"></media-icon>
           <media-icon type="volume-high" class="volume-high-icon vds-icon hidden group-data-[state='high']:block"></media-icon>
         </media-mute-button>
+        <media-toggle-button class="vds-button group" :data-defaultPressed="playoriginal" ref="toggleButton" @click=toggleOriginal>
+          <media-icon type="no-eye" class="vds-icon hidden group-data-[pressed]:block"></media-icon>
+          <media-icon type="user" class="vds-icon block group-data-[pressed]:hidden"></media-icon>
+        </media-toggle-button>
       </div>
     </media-player>
   </div>
