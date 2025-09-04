@@ -12,14 +12,18 @@
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "media-icons": "^1.1.5",
+    "pinia": "^3.0.3",
     "unocss": "^66.5.0",
+    "vidstack": "^1.12.13",
     "vue": "^3.5.13"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
-    "@vitejs/plugin-vue": "^5.2.1",
-    "typescript": "~5.6.2",
-    "vite": "^6.0.3",
-    "vue-tsc": "^2.1.10"
+    "@vitejs/plugin-vue": "^6.0.1",
+    "typescript": "~5.9.2",
+    "vite": "^7.1.4",
+    "vite-plugin-vue-devtools": "^8.0.1",
+    "vue-tsc": "^3.0.6"
   }
 }

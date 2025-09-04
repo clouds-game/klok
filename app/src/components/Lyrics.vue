@@ -17,7 +17,7 @@ watch(() => props.activeIndex, async (idx) => {
 <template>
   <div class="h-[80vh] overflow-auto" ref="container">
     <ul class="p-0 m-0 list-none">
-      <li v-for="(line, i) in props.lyrics" :key="i" class="lyric-line py-2 px-3 rounded flex gap-3 items-center" :class="[i === props.activeIndex ? 'bg-gradient-to-r from-[rgba(255,107,107,0.12)] to-[rgba(255,107,107,0.04)] text-white font-semibold' : 'text-muted', { active: i === props.activeIndex }]">
+      <li v-for="(line, i) in props.lyrics" :key="i" class="lyric-line py-2 px-3 rounded flex gap-3 items-center" :class="{ 'bg-gradient-to-r from-[rgba(255,107,107,0.12)] to-[rgba(255,107,107,0.04)] font-semibold': i === props.activeIndex }" :text="i === props.activeIndex ? 'white' : 'muted'">
         <span class="w-16 text-[12px]">{{ formatTime(line.time) }}</span>
         <span class="flex-1">{{ line.text }}</span>
       </li>
