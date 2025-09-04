@@ -3,6 +3,16 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { base64ToDataUrl } from './time'
 
+// MIDI note representation (matches Rust `Note` returned from `load_midi`)
+type MidiNote = {
+  note: number
+  start: number
+  duration: number
+  velocity: number
+  channel: number
+  confidence?: number | null
+}
+
 export const useAppState = defineStore('app', () => {
   const fileUrl = ref<string | null>(null)
   const _title = ref<string | null>(null)
@@ -12,6 +22,7 @@ export const useAppState = defineStore('app', () => {
   const currentTime = ref(0)
   const volume = ref(1)
   const metadata = ref<Metadata | null>(null)
+  const notes = ref<MidiNote[] | null>(null)
 
   const lyrics = computed(() => Array.from(metadata.value?.lyrics || []))
 
@@ -61,6 +72,16 @@ export const useAppState = defineStore('app', () => {
     }
   }
 
+  const loadMidi = async (newUrl: string) => {
+    try {
+      const res = await invoke('load_midi', { path: newUrl })
+      notes.value = res as MidiNote[]
+    } catch (e) {
+      console.warn('load_midi failed', e)
+      notes.value = null
+    }
+  }
+
   watch(fileUrl, async (newUrl) => {
     reset()
     if (newUrl) {
@@ -70,6 +91,7 @@ export const useAppState = defineStore('app', () => {
     }
     await loadMetadata(newUrl)
     await loadAudio(newUrl)
+    await loadMidi(newUrl)
   })
 
   const activeIndex = computed(() => {
@@ -78,6 +100,16 @@ export const useAppState = defineStore('app', () => {
       if (t >= lyrics.value[i].time) return i
     }
     return 0
+  })
+
+  const activeLeftTime = computed(() => {
+    return lyrics.value[activeIndex.value]?.time || 0
+  })
+  const activeRightTime = computed(() => {
+    if (activeIndex.value + 1 < lyrics.value.length) {
+      return (lyrics.value[activeIndex.value + 1]?.time || duration.value)
+    }
+    return duration.value
   })
 
   const togglePlay = (b?: boolean) => { isPlaying.value = b !== undefined ? b : !isPlaying.value }
@@ -94,11 +126,15 @@ export const useAppState = defineStore('app', () => {
     currentTime,
     volume,
     metadata,
+    notes,
     lyrics,
     activeIndex,
+    activeLeftTime,
+    activeRightTime,
     setTitle,
     loadMetadata,
     loadAudio,
+    loadMidi,
     togglePlay,
     seekTo,
     setVolume,

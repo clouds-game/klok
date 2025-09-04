@@ -1,6 +1,6 @@
 use serde::Serialize;
 use tauri::State;
-use crate::AppState;
+use crate::{commands::with_extension, AppState};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize)]
@@ -22,6 +22,8 @@ pub fn load_midi(state: State<'_, AppState>, path: String) -> Result<Vec<Note>, 
   if path.is_empty() {
     return Err("path argument is empty".to_string());
   }
+
+  let path = with_extension(&path, "_vocals.mid");
 
   let resolved = state.resolve(&path).ok_or_else(|| format!("resource not found: {}", path))?;
 

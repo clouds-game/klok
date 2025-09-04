@@ -4,7 +4,7 @@ use tauri::State;
 use serde::Serialize;
 use lofty::{Accessor, Probe, AudioFile, TaggedFileExt};
 
-const COMMON_EXT: [&str; 3] = ["mp3", "m4a", "flac"];
+use crate::commands::with_extension;
 
 
 #[derive(Serialize)]
@@ -42,21 +42,10 @@ pub fn get_metadata(state: State<'_, crate::AppState>, path: String) -> Result<M
 
   // no longer using a helper closure here
 
-  let base_name = if path.ends_with(".lrc") {
-    path.trim_end_matches(".lrc").to_string()
-  } else {
-    let mut result = None;
-    for ext in COMMON_EXT.iter() {
-      if path.ends_with(ext) {
-        let bn = path.trim_end_matches(&format!(".{ext}")).to_string();
-        result = Some(bn);
-      }
-    }
-    result.unwrap_or_else(|| path.to_string())
-  };
+  let lrc_path = with_extension(&path, ".lrc");
 
   // Build candidate paths
-  let lrc_resolved_path = state.resolve(base_name + ".lrc");
+  let lrc_resolved_path = state.resolve(lrc_path);
 
   // Try to read any candidate; if a candidate exists but fails to read, return an error.
   let lrc_content = if let Some(lrc_resolved_path) = lrc_resolved_path {
