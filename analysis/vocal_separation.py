@@ -7,7 +7,7 @@ import librosa
 import numpy as np
 from pathlib import Path
 from plottings import show_mel
-
+import platform
 workspace_dir = Path(__file__).parent.parent
 
 # %%
@@ -75,7 +75,8 @@ def separate_audio(audio_path: Path,
   return sources
 
 # call the inlined separation (replaces demucs.separate.main invocation)
-sources = separate_audio(audio_path, model_name="mdx_extra", device="mps")
+device = "mps" if platform.system() == "Darwin" else "cuda"
+sources = separate_audio(audio_path, model_name="mdx_extra", device=device)
 
 # %%
 show_mel(y, sr=sr, name=audio_path.name)
