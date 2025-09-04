@@ -27,6 +27,7 @@ impl AppState {
 
 pub mod commands;
 pub use commands::get_metadata::get_metadata;
+pub use commands::load_audio::load_audio;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -100,7 +101,7 @@ pub fn run() {
         _ => {}
       }
     })
-    .invoke_handler(tauri::generate_handler![greet, get_metadata])
+  .invoke_handler(tauri::generate_handler![greet, get_metadata, load_audio])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }

@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 
 const audioRef = ref<HTMLAudioElement | null>(null)
 const fileUrl = ref<string | null>(null)
+const streamUrl = ref<string | null>(null)
 const isPlaying = ref(false)
 const duration = ref(0)
 const currentTime = ref(0)
@@ -29,7 +30,8 @@ function loadFile(e: Event) {
   const inp = e.target as HTMLInputElement
   if (!inp.files || inp.files.length === 0) return
   const file = inp.files[0]
-  if (fileUrl.value) URL.revokeObjectURL(fileUrl.value)
+  // only revoke previous blob/object URLs
+  if (fileUrl.value && fileUrl.value.startsWith('blob:')) URL.revokeObjectURL(fileUrl.value)
   fileUrl.value = URL.createObjectURL(file)
   nextTick(() => {
     if (!audioRef.value) return
@@ -82,10 +84,22 @@ onMounted(() => {
   // if there's a bundled resource, you could pre-load it here
   ;(async () => {
     try {
+      // fetch metadata
       const md = await invoke('get_metadata', { path: fileUrl.value ?? "我的一个道姑朋友.m4a" })
       metadata.value = md as Metadata
       if (metadata.value?.duration) {
         duration.value = metadata.value.duration
+      }
+      // fetch audio content from rust backend as data URL for bundled resource
+      // store it in `streamUrl` so we don't overwrite any user-selected `fileUrl`
+      if (!streamUrl.value) {
+        try {
+          const dataUrl = await invoke('load_audio', { path: "我的一个道姑朋友.m4a" }) as string
+          streamUrl.value = dataUrl
+        } catch (e) {
+          // fallback: keep using builtin file name
+          console.warn('load_audio failed', e)
+        }
       }
     } catch (e) {
       // ignore, optional
@@ -108,7 +122,7 @@ function onEnded() {
 
       <audio
         ref="audioRef"
-        :src="fileUrl || '我的一个道姑朋友.mp3'"
+        :src="streamUrl || fileUrl || '我的一个道姑朋友.mp3'"
         @timeupdate="onTimeUpdate"
         @loadedmetadata="onLoadedMetadata"
         @ended="onEnded"
