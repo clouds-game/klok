@@ -4,6 +4,7 @@ import Controller from './components/Controller.vue'
 import Lyrics from './components/Lyrics.vue'
 import Playlist from './components/Playlist.vue'
 import { invoke } from '@tauri-apps/api/core'
+import { base64ToDataUrl } from './utils/time'
 
 const fileUrl = ref<string | null>(null)
 const streamUrl = ref<string | null>(null)
@@ -56,7 +57,11 @@ onMounted(() => {
       if (!streamUrl.value) {
         try {
           const dataUrl = await invoke('load_audio', { path: "我的一个道姑朋友.m4a" }) as string
-          streamUrl.value = dataUrl
+          if (dataUrl.startsWith("data:")) {
+            streamUrl.value = base64ToDataUrl(dataUrl)
+          } else {
+            streamUrl.value = dataUrl
+          }
         } catch (e) {
           // fallback: keep using builtin file name
           console.warn('load_audio failed', e)
