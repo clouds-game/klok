@@ -12,7 +12,9 @@
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "media-icons": "^1.1.5",
     "unocss": "^66.5.0",
+    "vidstack": "^1.12.13",
     "vue": "^3.5.13"
   },
   "devDependencies": {

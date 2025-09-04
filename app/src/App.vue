@@ -5,7 +5,6 @@ import Lyrics from './components/Lyrics.vue'
 import Playlist from './components/Playlist.vue'
 import { invoke } from '@tauri-apps/api/core'
 
-const audioRef = ref<HTMLAudioElement | null>(null)
 const fileUrl = ref<string | null>(null)
 const streamUrl = ref<string | null>(null)
 const isPlaying = ref(false)
@@ -34,51 +33,13 @@ function loadFile(e: Event) {
   if (fileUrl.value && fileUrl.value.startsWith('blob:')) URL.revokeObjectURL(fileUrl.value)
   fileUrl.value = URL.createObjectURL(file)
   nextTick(() => {
-    if (!audioRef.value) return
-    audioRef.value.load()
-    audioRef.value.volume = volume.value
-    play()
-  })
+      // rely on media-player inside Controller (autoplay on selection if we set isPlaying)
+      isPlaying.value = true
+    })
 }
-
-function onLoadedMetadata() {
-  if (!audioRef.value) return
-  duration.value = audioRef.value.duration || 0
-}
-
-function onTimeUpdate() {
-  if (!audioRef.value) return
-  currentTime.value = audioRef.value.currentTime
-}
-
-function play() {
-  if (!audioRef.value) return
-  audioRef.value.play()
-  isPlaying.value = true
-}
-
-function pause() {
-  if (!audioRef.value) return
-  audioRef.value.pause()
-  isPlaying.value = false
-}
-
-function togglePlay() {
-  if (!audioRef.value) return
-  if (isPlaying.value) pause()
-  else play()
-}
-
-function seekTo(v: number) {
-  if (!audioRef.value) return
-  audioRef.value.currentTime = v
-  currentTime.value = v
-}
-
-function setVolume(v: number) {
-  volume.value = v
-  if (audioRef.value) audioRef.value.volume = v
-}
+function togglePlay() { isPlaying.value = !isPlaying.value }
+function seekTo(v: number) { currentTime.value = v }
+function setVolume(v: number) { volume.value = v }
 
 onMounted(() => {
   // if there's a bundled resource, you could pre-load it here
@@ -108,29 +69,25 @@ onMounted(() => {
   })()
 })
 
-function onEnded() {
-  isPlaying.value = false
-}
+// ended event handled via play-state false when media ends (vidstack emits pause)
 
 </script>
 
 <template>
   <main class="flex gap-6 p-6 min-h-screen bg-gradient-to-b from-bg1 to-bg2 text-text box-border">
     <section class="w-[360px] bg-panel p-4 rounded-lg shadow-[0_6px_18px_rgba(2,6,23,0.6)]">
-      <Controller :isPlaying="isPlaying" :currentTime="currentTime" :duration="duration" :volume="volume" :title="metadata?.title ?? 'Unknown'"
-        @toggle-play="togglePlay" @seek-to="seekTo" @set-volume="setVolume" />
+      <Controller :src="streamUrl || fileUrl || '我的一个道姑朋友.mp3'" :isPlaying="isPlaying" :currentTime="currentTime" :duration="duration" :volume="volume" :title="metadata?.title ?? 'Unknown'"
+        @toggle-play="togglePlay" @seek-to="seekTo" @set-volume="setVolume"
+        @time-update="t => currentTime = t"
+        @loaded-metadata="d => duration = d"
+        @play-state="p => isPlaying = p"
+      />
       <label class="border border-muted px-3 py-2 rounded cursor-pointer inline-flex items-center">
         Load audio
         <input class="hidden" type="file" accept="audio/*" @change="loadFile" />
       </label>
 
-      <audio
-        ref="audioRef"
-        :src="streamUrl || fileUrl || '我的一个道姑朋友.mp3'"
-        @timeupdate="onTimeUpdate"
-        @loadedmetadata="onLoadedMetadata"
-        @ended="onEnded"
-      ></audio>
+  <!-- native <audio> removed; Controller's <media-player> handles playback -->
 
       <div class="mt-4">
         <Playlist :items="[{ title: metadata?.title ?? '', artist: metadata?.artist, url: metadata?.url }]" />
