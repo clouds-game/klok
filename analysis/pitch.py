@@ -6,11 +6,22 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from mido import MidiFile, MidiTrack, Message
 import mido
+
+import importlib; import plottings as plottings; importlib.reload(plottings)
+from plottings import plot_y_time, show_pitch
+
+workspace_dir = Path(__file__).parent.parent
+
 # %%
+audio_base_name = "我的一个道姑朋友"
+audio_vocals_path = workspace_dir / f"res/{audio_base_name}_vocals.mp3"
 
+y, sr = librosa.load(str(audio_vocals_path), sr=None)
+print(f"音频加载完成 - 采样率: {sr} Hz, 时长: {librosa.get_duration(y=y, sr=sr):.2f} 秒")
+
+plot_y_time(y, sr=sr, name=audio_vocals_path.name)
 
 # %%
-
 # 获取音频信息
 
 
@@ -29,7 +40,7 @@ def _save_pitch_analysis(pitches: np.ndarray, voiced_flag: np.ndarray, voiced_pr
            voiced_flag=voiced_flag, voiced_prob=voiced_prob, rms=rms)
 
 
-def get_audio_info(audio_path: Path, hop_length: int = 512) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, int, float]:
+def get_audio_info(y: np.ndarray, sr: int, hop_length: int = 512, audio_path: Path | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   """
   返回 (pitches, voiced_flag, voiced_prob, rms, sr, duration)
   pitches: 每帧频率(Hz)或 NaN
@@ -39,9 +50,8 @@ def get_audio_info(audio_path: Path, hop_length: int = 512) -> tuple[np.ndarray,
   sr: 采样率
   duration: 音频总时长（秒）
   """
-  y, sr = librosa.load(audio_path)
-  cache_path = audio_path.with_suffix('.npz')
-  if cache_path.exists():
+  cache_path = audio_path and audio_path.with_suffix('.npz')
+  if cache_path and cache_path.exists():
     pitches, voiced_flag, voiced_prob, rms = _load_pitch_analysis(cache_path)
   else:
     pitches, voiced_flag, voiced_prob = librosa.pyin(
@@ -55,9 +65,13 @@ def get_audio_info(audio_path: Path, hop_length: int = 512) -> tuple[np.ndarray,
     rms = librosa.feature.rms(y=y, hop_length=hop_length).flatten()
     _save_pitch_analysis(pitches, voiced_flag, voiced_prob, rms, cache_path)
 
-  duration = librosa.get_duration(y=y, sr=sr)
-  return pitches, voiced_flag, voiced_prob, rms, sr, duration
+  plot_y_time(pitches, sr=sr/hop_length, name="音高 (Hz)")
+  plot_y_time(voiced_prob, sr=sr/hop_length, name="音高置信度")
+  plot_y_time(rms, sr=sr/hop_length, name="RMS 能量")
+  return pitches, voiced_flag, voiced_prob, rms
 
+hop_length = 512
+pitches, voiced_flag, voiced_prob, rms = get_audio_info(y, sr, audio_path=audio_vocals_path)
 
 # %%
 
@@ -141,39 +155,8 @@ def notes_to_midi(notes: list[tuple[float, float, int, int]], output_path: Path,
   mid.save(output_path)
   return output_path
 
-
 # %%
-
-
-def show_pitch(pitch: np.ndarray, duration: float):
-  plt.rcParams['font.family'] = 'SimHei'
-  fig, ax = plt.subplots(figsize=(12, 8))
-  plt.subplots_adjust(bottom=0.25)  # 留出滑块空间
-
-  times = librosa.times_like(pitch)
-  # 绘制音高曲线
-  ax.plot(times, pitch, 'b-', linewidth=1.5, alpha=0.8)
-
-  # 设置坐标轴
-  ax.set_ylim(librosa.note_to_hz('C2') * 0.9, librosa.note_to_hz('C6') * 1.1)
-  ax.set_xlim(0, max(20, duration))  # 初始显示20秒或整首歌（取较小值）
-  ax.set_ylabel('音高 (Hz)')
-  ax.set_xlabel('时间 (秒)')
-  ax.set_title(f'歌曲音高展示')
-  ax.grid(True, alpha=0.4)
-
-  # plt.show()
-  note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-  # 添加音符参考线（C4到B5）
-  for octave in range(4, 6):
-    for i, note in enumerate(note_names):
-      hz = librosa.note_to_hz(f"{note}{octave}")
-      ax.axhline(y=hz, color='lightgray', linestyle='--', alpha=0.5)
-      # 在右侧显示音符名称
-      ax.text(ax.get_xlim()[1] * 1.01, hz, f"{note}{octave}",
-              verticalalignment='center', color='gray', alpha=0.7)
-
-  plt.show()
+show_pitch(pitches, sr=sr/hop_length)
 
 
 # %%
@@ -183,13 +166,10 @@ def mp3_to_midi(audio_path: Path):
   midi_path = audio_path.with_suffix('.mid')
   notes_to_midi(notes, midi_path)
 
-
 # %%
-audio_path = Path(__file__).parent.parent.joinpath("res/vocals.mp3")
-# %%
-pitches, _, _, rms, sr, duration = get_audio_info(audio_path)
+pitches, _, _, rms = get_audio_info(y, sr, audio_path=audio_vocals_path)
 notes = pitch_to_midi_notes(pitches, rms, sr)
-midi_path = audio_path.with_suffix('.mid')
+midi_path = audio_vocals_path.with_suffix('.mid')
 notes_to_midi(notes, midi_path)
 
 # %%

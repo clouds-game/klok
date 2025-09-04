@@ -13,6 +13,7 @@ wheels/
 
 uv.lock
 
+*_vocals.mp3
 *.npz
 *.midi
 *.mid
