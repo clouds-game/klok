@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // register vidstack web components
+import { type MediaPlayerElement } from 'vidstack/elements'
 import 'vidstack/bundle'
 import 'vidstack/icons'
 import { defineEmits, defineProps, ref, watch } from 'vue'
 
-const props = defineProps<{ title: string, src: string, isPlaying: boolean; currentTime: number; duration: number; volume: number }>()
+const props = defineProps<{ title: string, src?: string, isPlaying: boolean; currentTime: number; duration: number; volume: number }>()
 const emit = defineEmits<{
-  (e: 'toggle-play'): void
   (e: 'seek-to', v: number): void
   (e: 'set-volume', v: number): void
   // new automatic update events so parent doesn't need polling
@@ -16,23 +16,16 @@ const emit = defineEmits<{
 }>()
 
 // underlying custom element <media-player>
-const player = ref<any | null>(null)
-
-function onSeek(e: Event) {
-  const t = e.target as HTMLInputElement
-  const v = Number(t?.value ?? 0)
-  const max = Number(t?.max ?? 1)
-  const newTime = (props.duration || 0) * Math.max(0, Math.min(1, v / max))
-  emit('seek-to', newTime)
-}
+const player = ref<MediaPlayerElement | null>(null)
 
 // volume slider not yet implemented inside this component (parent handles volume UI)
 
 // media-player event handlers
 function handleTimeUpdate() {
-  if (!player.value) return
+  console.log("Time update:", player.value?.currentTime)
+  if (player.value?.currentTime == null) return
   // @ts-ignore custom element exposes currentTime
-  const ct = (player.value as any).currentTime ?? 0
+  const ct = player.value.currentTime
   emit('time-update', ct)
 }
 
@@ -43,26 +36,9 @@ function handleLoadedMetadata() {
   emit('loaded-metadata', d)
 }
 
-function handlePlay() {
-  emit('play-state', true)
+function handlePlay(v: boolean) {
+  emit('play-state', v)
 }
-
-function handlePause() {
-  emit('play-state', false)
-}
-
-// react to parent state changes
-watch(() => props.isPlaying, (val) => {
-  const el: any = player.value
-  if (!el) return
-  if (val && el.paused) el.play?.()
-  else if (!val && !el.paused) el.pause?.()
-})
-
-watch(() => props.volume, (v) => {
-  const el: any = player.value
-  if (el) el.volume = v
-}, { immediate: true })
 
 function onProgressClick(e: MouseEvent) {
   const target = e.currentTarget as HTMLElement
@@ -71,6 +47,20 @@ function onProgressClick(e: MouseEvent) {
   const newTime = (props.duration || 0) * Math.max(0, Math.min(1, ratio))
   emit('seek-to', newTime)
 }
+
+// react to parent state changes
+watch(() => props.isPlaying, (val) => {
+  const el = player.value
+  if (!el) return
+  if (val && el.paused) el.play?.()
+  else if (!val && !el.paused) el.pause?.()
+}, { immediate: true })
+
+watch(() => props.volume, (v) => {
+  const el = player.value
+  if (!el) return
+  el.volume = v
+}, { immediate: true })
 </script>
 
 <template>
@@ -78,20 +68,24 @@ function onProgressClick(e: MouseEvent) {
     <!-- <audio :src="props.src"></audio>
     <div>hello</div> -->
     <media-player
-      :src="props.src"
       crossorigin
       playsinline
       :current-time="props.currentTime"
-      :ref="player"
+      ref="player"
+      keep-alive
       @timeupdate="handleTimeUpdate"
+      @progress="handleTimeUpdate"
       @loadedmetadata="handleLoadedMetadata"
-      @play="handlePlay"
-      @pause="handlePause"
-      @seeking="onSeek"
-      @seeked="onSeek"
+      @play="handlePlay(true)"
+      @pause="handlePlay(false)"
+      @seeking="handleTimeUpdate"
+      @seeked="handleTimeUpdate"
       class="block"
     >
-      <media-provider class="hidden"></media-provider>
+      <!--@timeupdate and @progress would never emit -->
+      <media-provider class="hidden" :src="props.src" type="audio/mp4">
+        <source :src="props.src" type="audio/mp4" />
+      </media-provider>
       <div class="flex items-center gap-4">
         <!-- Play / Pause -->
         <media-play-button class="vds-button group">
@@ -102,8 +96,9 @@ function onProgressClick(e: MouseEvent) {
         </media-play-button>
 
         <!-- Progress (click to seek) -->
-        <media-time-slider class="vds-time-slider vds-slider" @click="onProgressClick">
+        <media-time-slider class="vds-time-slider vds-slider" @click="onProgressClick" @value-change="handleTimeUpdate" @pointer-value-change="handleTimeUpdate">
           <!-- See https://vidstack.io/docs/wc/player/components/sliders/time-slider/?styling=default-theme -->
+          <!-- only @pointer-value-change works, @value-change would not emit -->
           <div class="vds-slider-track"></div>
           <div class="vds-slider-track-fill vds-slider-track bg-white"></div>
           <div class="vds-slider-progress vds-slider-track bg-gray"></div>
