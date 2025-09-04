@@ -117,8 +117,12 @@ function onEnded() {
 <template>
   <main class="flex gap-6 p-6 min-h-screen bg-gradient-to-b from-bg1 to-bg2 text-text box-border">
     <section class="w-[360px] bg-panel p-4 rounded-lg shadow-[0_6px_18px_rgba(2,6,23,0.6)]">
-      <Controller :isPlaying="isPlaying" :currentTime="currentTime" :duration="duration" :volume="volume"
-        @toggle-play="togglePlay" @seek-to="seekTo" @set-volume="setVolume" @load-file="loadFile" />
+      <Controller :isPlaying="isPlaying" :currentTime="currentTime" :duration="duration" :volume="volume" :title="metadata?.title ?? 'Unknown'"
+        @toggle-play="togglePlay" @seek-to="seekTo" @set-volume="setVolume" />
+      <label class="border border-muted px-3 py-2 rounded cursor-pointer inline-flex items-center">
+        Load audio
+        <input class="hidden" type="file" accept="audio/*" @change="loadFile" />
+      </label>
 
       <audio
         ref="audioRef"

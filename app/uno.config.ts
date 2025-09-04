@@ -2,6 +2,9 @@ import { defineConfig, presetWind4, presetAttributify, presetIcons } from 'unocs
 
 export default defineConfig({
   presets: [presetWind4(), presetAttributify(), presetIcons()],
+  content: {
+    pipeline: { include: ['src/**/*.{vue,js,ts,jsx,tsx}'] }
+  },
   theme: {
     colors: {
       primary: '#ff6b6b',
