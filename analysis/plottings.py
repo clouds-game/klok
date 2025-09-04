@@ -87,3 +87,26 @@ def show_mel(y: ArrayLike, sr: int, name: str = None):
   ax.set_title('Mel Spectrogram')
 
   fig.tight_layout()
+
+def plot_notes(notes: list, sr: int, title: str | None = None) -> None:
+  """用 matplotlib 绘制音高时间线：每个音符为一条水平线（start->end），y 轴为 midi note number。"""
+  notes = list(notes)
+  if not notes:
+    print('No notes to plot')
+    return
+
+  fig, ax = plt.subplots(figsize=(10, 4))
+
+  for n in notes:
+    ax.hlines(n.note, n.start / sr, (n.start + n.duration) / sr, linewidth=3, color='C0')
+    # 在段中点标注名称
+    # mid_t = (n.start + n.start + n.duration) / 2
+    # ax.text(mid_t, n.note + 0.15, n.name, fontsize=8, ha='center', va='bottom')
+
+  ax.set_xlabel('Time (s)')
+  ax.set_ylabel('MIDI Note Number')
+  if title:
+    ax.set_title(title)
+  ax.grid(True, axis='x', linestyle='--', alpha=0.4)
+  ax.xaxis.set_major_formatter(FuncFormatter(_mmss))
+  fig.tight_layout()
