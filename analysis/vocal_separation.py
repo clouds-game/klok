@@ -79,6 +79,6 @@ sources = separate_audio(audio_path, model_name="mdx_extra", device="mps")
 
 # %%
 show_mel(y, sr=sr, name=audio_path.name)
-show_mel(sources['vocals'], sr=sr, name=audio_path.name + "_vocals")
+show_mel(sources[3].mean(0), sr=sr, name=audio_path.name + "_vocals")
 
-#%%
+# %%
