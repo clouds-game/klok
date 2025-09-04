@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Optional, Tuple, List
 import platform
+import time
+import numpy as np
 
 # Add analysis directory to path for imports
 sys.path.append(str(Path(__file__).parent / "analysis"))
@@ -35,8 +37,13 @@ def import_with_fallback():
             # Return None values if dependencies are missing
             return None, None, None, None, None
 
-# Try to import dependencies
-separate_audio, get_audio_info, pitch_to_midi_notes, notes_to_midi, transform_to_midi = import_with_fallback()
+
+# Global variables for imported functions
+separate_audio = None
+get_audio_info = None
+pitch_to_midi_notes = None
+notes_to_midi = None
+transform_to_midi = None
 
 
 class AudioPipeline:
@@ -47,7 +54,8 @@ class AudioPipeline:
     def __init__(self, 
                  model_name: str = "mdx_extra",
                  device: Optional[str] = None,
-                 output_ext: str = "mp3"):
+                 output_ext: str = "mp3",
+                 hop_length: int = 512):
         """
         Initialize the audio pipeline.
         
@@ -55,9 +63,11 @@ class AudioPipeline:
             model_name: Demucs model name for vocal separation
             device: Device to use ("cpu", "cuda", "mps"). Auto-detected if None.
             output_ext: Extension for separated audio files
+            hop_length: Hop length for pitch analysis (default: 512)
         """
         self.model_name = model_name
         self.output_ext = output_ext
+        self.hop_length = hop_length
         
         if device is None:
             # Auto-detect device
@@ -73,6 +83,12 @@ class AudioPipeline:
     
     def _check_dependencies(self):
         """Check if required dependencies are available."""
+        # Initialize imports if not already done
+        global separate_audio, get_audio_info, pitch_to_midi_notes, notes_to_midi, transform_to_midi
+        if separate_audio is None:
+            import_result = import_with_fallback()
+            separate_audio, get_audio_info, pitch_to_midi_notes, notes_to_midi, transform_to_midi = import_result
+        
         missing_deps = []
         
         if separate_audio is None:
@@ -135,7 +151,11 @@ class AudioPipeline:
         
         # Step 1: Vocal separation
         print("🎤 Separating vocals...")
+        start_time = time.time()
         try:
+            # Check for cached sources
+            cache_path = output_dir / f"{base_name}_sources.npz"
+            
             sources = separate_audio(
                 audio_path,
                 model_name=self.model_name,
@@ -143,33 +163,49 @@ class AudioPipeline:
                 out_dir=output_dir,
                 ext=self.output_ext
             )
+            
+            # Cache sources to npz
+            if hasattr(sources, 'cpu'):
+                # If sources is a tensor, convert to numpy and cache
+                sources_np = sources.cpu().numpy()
+                np.savez_compressed(cache_path, sources=sources_np)
+                print(f"💾 Cached sources to: {cache_path}")
+            
             vocals_path = output_dir / f"{base_name}_vocals.{self.output_ext}"
             results['vocals_path'] = vocals_path
-            print(f"✅ Vocals saved to: {vocals_path}")
+            elapsed = time.time() - start_time
+            print(f"✅ Vocals saved to: {vocals_path} (took {elapsed:.2f}s)")
         except Exception as e:
-            print(f"❌ Vocal separation failed: {e}")
+            elapsed = time.time() - start_time
+            print(f"❌ Vocal separation failed: {e} (took {elapsed:.2f}s)")
             raise
         
         # Step 2: Generate MIDI using pitch analysis
         if generate_pitch_midi:
             print("🎹 Generating MIDI using pitch analysis...")
+            start_time = time.time()
             try:
                 pitch_midi_path = self._generate_pitch_midi(vocals_path, output_dir)
                 results['pitch_midi_path'] = pitch_midi_path
-                print(f"✅ Pitch MIDI saved to: {pitch_midi_path}")
+                elapsed = time.time() - start_time
+                print(f"✅ Pitch MIDI saved to: {pitch_midi_path} (took {elapsed:.2f}s)")
             except Exception as e:
-                print(f"⚠️ Pitch MIDI generation failed: {e}")
+                elapsed = time.time() - start_time
+                print(f"⚠️ Pitch MIDI generation failed: {e} (took {elapsed:.2f}s)")
                 results['pitch_midi_path'] = None
         
         # Step 3: Generate MIDI using Basic Pitch
         if generate_basic_pitch_midi:
             print("🤖 Generating MIDI using Basic Pitch...")
+            start_time = time.time()
             try:
                 basic_pitch_midi_path = self._generate_basic_pitch_midi(vocals_path, output_dir)
                 results['basic_pitch_midi_path'] = basic_pitch_midi_path
-                print(f"✅ Basic Pitch MIDI saved to: {basic_pitch_midi_path}")
+                elapsed = time.time() - start_time
+                print(f"✅ Basic Pitch MIDI saved to: {basic_pitch_midi_path} (took {elapsed:.2f}s)")
             except Exception as e:
-                print(f"⚠️ Basic Pitch MIDI generation failed: {e}")
+                elapsed = time.time() - start_time
+                print(f"⚠️ Basic Pitch MIDI generation failed: {e} (took {elapsed:.2f}s)")
                 results['basic_pitch_midi_path'] = None
         
         print("🎉 Pipeline completed successfully!")
@@ -184,13 +220,12 @@ class AudioPipeline:
         y, sr = librosa.load(str(vocals_path), sr=None)
         
         # Extract pitch information
-        hop_length = 512
         pitches, voiced_flag, voiced_prob, rms = get_audio_info(
-            y, sr, hop_length=hop_length, audio_path=vocals_path
+            y, sr, hop_length=self.hop_length, audio_path=vocals_path
         )
         
         # Convert to MIDI notes
-        notes = pitch_to_midi_notes(pitches, rms, sr, hop_length=hop_length)
+        notes = pitch_to_midi_notes(pitches, rms, sr, hop_length=self.hop_length)
         
         # Save MIDI file
         midi_path = output_dir / f"{vocals_path.stem}_pitch.mid"
@@ -268,4 +303,8 @@ def main():
 
 
 if __name__ == "__main__":
+    # Initialize imported functions when run as script
+    import_result = import_with_fallback()
+    separate_audio, get_audio_info, pitch_to_midi_notes, notes_to_midi, transform_to_midi = import_result
+    
     main()

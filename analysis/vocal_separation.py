@@ -6,19 +6,17 @@
 import librosa
 import numpy as np
 from pathlib import Path
-from plottings import show_mel
+try:
+    from plottings import show_mel
+except ImportError:
+    from .plottings import show_mel
 import platform
 workspace_dir = Path(__file__).parent.parent
 
 # %%
+# Constants
 audio_base_name = "我的一个道姑朋友"
 audio_path = workspace_dir / f"res/{audio_base_name}.m4a"
-
-# output_dir = audio_path.parent.joinpath(audio_path.name)
-
-# str is needed on PosixPath: AttributeError: 'PosixPath' object has no attribute 'encode'
-y, sr = librosa.load(str(audio_path), sr=None)
-print(f"音频加载完成 - 采样率: {sr} Hz, 时长: {librosa.get_duration(y=y, sr=sr):.2f} 秒")
 
 # %%
 def separate_audio(audio_path: Path,
@@ -74,12 +72,19 @@ def separate_audio(audio_path: Path,
     print(f"wrote: {filename}")
   return sources
 
-# call the inlined separation (replaces demucs.separate.main invocation)
-device = "mps" if platform.system() == "Darwin" else "cuda"
-sources = separate_audio(audio_path, model_name="mdx_extra", device=device)
 
-# %%
-show_mel(y, sr=sr, name=audio_path.name)
-show_mel(sources[3].mean(0), sr=sr, name=audio_path.name + "_vocals")
+if __name__ == "__main__":
+    # Demo/testing code when run as script
+    # output_dir = audio_path.parent.joinpath(audio_path.name)
 
-# %%
+    # str is needed on PosixPath: AttributeError: 'PosixPath' object has no attribute 'encode'
+    y, sr = librosa.load(str(audio_path), sr=None)
+    print(f"音频加载完成 - 采样率: {sr} Hz, 时长: {librosa.get_duration(y=y, sr=sr):.2f} 秒")
+
+    # call the inlined separation (replaces demucs.separate.main invocation)
+    device = "mps" if platform.system() == "Darwin" else "cuda"
+    sources = separate_audio(audio_path, model_name="mdx_extra", device=device)
+
+    # %%
+    show_mel(y, sr=sr, name=audio_path.name)
+    show_mel(sources[3].mean(0), sr=sr, name=audio_path.name + "_vocals")

@@ -7,19 +7,19 @@ import matplotlib.pyplot as plt
 from mido import MidiFile, MidiTrack, Message
 import mido
 
-import importlib; import plottings as plottings; importlib.reload(plottings)
-from plottings import plot_y_time, show_pitch
+try:
+    import importlib; import plottings as plottings; importlib.reload(plottings)
+    from plottings import plot_y_time, show_pitch
+except ImportError:
+    from . import plottings
+    from .plottings import plot_y_time, show_pitch
 
 workspace_dir = Path(__file__).parent.parent
 
 # %%
+# Constants
 audio_base_name = "我的一个道姑朋友"
 audio_vocals_path = workspace_dir / f"res/{audio_base_name}_vocals.mp3"
-
-y, sr = librosa.load(str(audio_vocals_path), sr=None)
-print(f"音频加载完成 - 采样率: {sr} Hz, 时长: {librosa.get_duration(y=y, sr=sr):.2f} 秒")
-
-plot_y_time(y, sr=sr, name=audio_vocals_path.name)
 
 # %%
 # 获取音频信息
@@ -70,8 +70,6 @@ def get_audio_info(y: np.ndarray, sr: int, hop_length: int = 512, audio_path: Pa
   plot_y_time(rms, sr=sr/hop_length, name="RMS 能量")
   return pitches, voiced_flag, voiced_prob, rms
 
-hop_length = 512
-pitches, voiced_flag, voiced_prob, rms = get_audio_info(y, sr, audio_path=audio_vocals_path)
 
 # %%
 
@@ -155,21 +153,29 @@ def notes_to_midi(notes: list[tuple[float, float, int, int]], output_path: Path,
   mid.save(output_path)
   return output_path
 
-# %%
-show_pitch(pitches, sr=sr/hop_length)
 
+if __name__ == "__main__":
+    # Demo/testing code when run as script
+    y, sr = librosa.load(str(audio_vocals_path), sr=None)
+    print(f"音频加载完成 - 采样率: {sr} Hz, 时长: {librosa.get_duration(y=y, sr=sr):.2f} 秒")
 
-# %%
-def mp3_to_midi(audio_path: Path):
-  pitches, _, _, rms, sr, duration = get_audio_info(audio_path)
-  notes = pitch_to_midi_notes(pitches, rms, sr)
-  midi_path = audio_path.with_suffix('.mid')
-  notes_to_midi(notes, midi_path)
+    plot_y_time(y, sr=sr, name=audio_vocals_path.name)
 
-# %%
-pitches, _, _, rms = get_audio_info(y, sr, audio_path=audio_vocals_path)
-notes = pitch_to_midi_notes(pitches, rms, sr)
-midi_path = audio_vocals_path.with_suffix('.mid')
-notes_to_midi(notes, midi_path)
+    # Get audio info for demo
+    pitches, voiced_flag, voiced_prob, rms = get_audio_info(y, sr, audio_path=audio_vocals_path)
+    hop_length = 512
 
-# %%
+    # %%
+    show_pitch(pitches, sr=sr/hop_length)
+
+    # %%
+    def mp3_to_midi(audio_path: Path):
+      pitches, _, _, rms, sr, duration = get_audio_info(audio_path)
+      notes = pitch_to_midi_notes(pitches, rms, sr)
+      midi_path = audio_path.with_suffix('.mid')
+      notes_to_midi(notes, midi_path)
+
+    # %%
+    notes = pitch_to_midi_notes(pitches, rms, sr)
+    midi_path = audio_vocals_path.with_suffix('.mid')
+    notes_to_midi(notes, midi_path)

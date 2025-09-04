@@ -15,11 +15,11 @@ A comprehensive audio processing pipeline that separates vocals from audio files
 ### Installation
 
 ```bash
-# Install dependencies
-pip install demucs librosa matplotlib mido onnxruntime pretty-midi torch numpy scipy
+# Install dependencies using uv
+uv sync
 
-# Or install the project
-pip install -e .
+# Or install specific packages with uv if needed
+uv add demucs librosa matplotlib mido onnxruntime pretty-midi torch numpy scipy
 ```
 
 ### Basic Usage
