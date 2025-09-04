@@ -51,9 +51,3 @@ FREQ_BINS_NOTES = _freq_bins(NOTES_BINS_PER_SEMITONE,
                              ANNOTATIONS_BASE_FREQUENCY, ANNOTATIONS_N_SEMITONES)
 FREQ_BINS_CONTOURS = _freq_bins(CONTOURS_BINS_PER_SEMITONE,
                                 ANNOTATIONS_BASE_FREQUENCY, ANNOTATIONS_N_SEMITONES)
-
-
-class Split(Enum):
-  train = "train"
-  validation = "validation"
-  test = "test"
