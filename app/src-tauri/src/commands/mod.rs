@@ -1,6 +1,7 @@
 pub mod get_metadata;
 pub mod load_audio;
 pub mod load_midi;
+pub mod load_playlist;
 
 
 const COMMON_EXT: [&str; 3] = [".mp3", ".m4a", ".flac"];
