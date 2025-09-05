@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, nextTick } from 'vue'
-import { resolveAudioUrl } from './time'
+import { uint8ArrayToDataUrl } from './time'
+
 
 // MIDI note representation (matches Rust `Note` returned from `load_midi`)
 type MidiNote = {
@@ -86,10 +87,13 @@ export const useAppState = defineStore('app', () => {
     try {
       const name = newUrl.split(".")[0]
 
-      const accompanyData = await invoke('load_audio', { path: `${name}_non_vocals.mp3` }) as string
-      const vocalData = await invoke('load_audio', { path: `${name}_vocals.mp3` }) as string
-      streamUrl.value = resolveAudioUrl(accompanyData)
-      vocalUrl.value = resolveAudioUrl(vocalData)
+      const vocalData_ = await invoke('load_audio', { path: `${name}_vocals.mp3` }) as Array<number>
+      const accompanyData_ = await invoke('load_audio', { path: `${name}_non_vocals.mp3` }) as Array<number>
+      const vocalData = Uint8Array.from(vocalData_)
+      const accompanyData = Uint8Array.from(accompanyData_)
+
+      streamUrl.value = uint8ArrayToDataUrl(accompanyData)
+      vocalUrl.value = uint8ArrayToDataUrl(vocalData)
     } catch (e) {
       // fallback: keep using builtin file name
       console.warn('load_audio failed', e)

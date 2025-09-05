@@ -47,6 +47,11 @@ export function base64ToDataUrl(dataUrl: string): string {
   return URL.createObjectURL(blob)
 }
 
+export function uint8ArrayToDataUrl(data: Uint8Array<ArrayBuffer>, mimeType: string = 'audio/mpeg'): string {
+  const blob = new Blob([data], { type: mimeType })
+  return URL.createObjectURL(blob)
+}
+
 export function resolveAudioUrl(data: string): string {
   return data.startsWith('data:') ? base64ToDataUrl(data) : data
 }
