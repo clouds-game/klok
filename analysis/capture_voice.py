@@ -1,5 +1,5 @@
 # %%
-import pyaudio
+import sounddevice as sd
 import time
 import numpy as np
 import librosa
@@ -20,7 +20,10 @@ pitch_lock = threading.Lock()
 
 
 def detect_pitch(audio_data: np.ndarray, sr=RATE) -> float | None:
-  audio_data /= np.max(np.abs(audio_data))
+  max_abs = np.max(np.abs(audio_data))
+  if max_abs == 0:
+    return None
+  audio_data = audio_data / max_abs
   f0, _, _ = librosa.pyin(
       audio_data,
       fmin=librosa.note_to_hz('C2'),  # 最低检测音高 65hz value=36
@@ -50,47 +53,41 @@ def hz_to_note(frequency: float) -> str:
 
 
 def audio_processing_thread():
-  audio = pyaudio.PyAudio()
-  stream = audio.open(
-      format=pyaudio.paFloat32,
-      channels=CHANNELS,
-      rate=RATE,
-      input=True,
-      frames_per_buffer=CHUNK,
-  )
   start_time = time.time()
   print("开始检测音高, start_time:", start_time)
   try:
-    while is_running:
-      # 读取音频数据
-      data = stream.read(CHUNK, exception_on_overflow=True)
-      # 转换为numpy数组
-      audio_data = np.frombuffer(data, dtype=np.float32).copy()
-      # 检测音高
-      pitch = detect_pitch(audio_data)
-      # 显示结果
-      if pitch:
-        midi = librosa.hz_to_midi(pitch)
-        note = librosa.hz_to_note(pitch)
-        print(f"当前音高: {midi:.2f} MIDI, {note}")
-        pitch_data = {
-            "midi": midi,
-            "note": note,
-            "pitch": pitch,
-        }
-        global latest_pitch_data
-        with pitch_lock:
-          latest_pitch_data = pitch_data
-      else:
-        print("未检测到有效音高...")
-      # 短暂延迟，减少CPU占用
-      time.sleep(0.05)
+    # Use sounddevice InputStream which is usually easier to install on macOS
+    with sd.InputStream(samplerate=RATE, channels=CHANNELS, dtype='float32', blocksize=CHUNK) as stream:
+      while is_running:
+        # read returns (frames, overflow)
+        frames, overflow = stream.read(CHUNK)
+        if overflow:
+          # overflow is a boolean array or flag; if True, skip this block
+          print("缓冲区溢出，跳过此帧", frames.shape)
+          continue
+        # frames shape: (CHUNK, CHANNELS) -> squeeze to 1D for mono
+        audio_data = np.squeeze(np.array(frames, dtype=np.float32))
+        # 检测音高
+        pitch = detect_pitch(audio_data)
+        # 显示结果
+        if pitch:
+          midi = librosa.hz_to_midi(pitch)
+          note = librosa.hz_to_note(pitch)
+          print(f"当前音高: {midi:.2f} MIDI, {note}")
+          pitch_data = {
+              "midi": midi,
+              "note": note,
+              "pitch": pitch,
+          }
+          global latest_pitch_data
+          with pitch_lock:
+            latest_pitch_data = pitch_data
+        else:
+          print("未检测到有效音高...")
+        # 短暂延迟，减少CPU占用
+        time.sleep(0.05)
   except Exception as e:
     print(f"检测已停止: {e}")
-  finally:
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
 # %%
 
 
@@ -158,8 +155,8 @@ def main():
     audio_thread.join()
     print("程序已退出")
 
-
-#%%
 # %%
 if __name__ == '__main__':
   main()
+
+# %%
