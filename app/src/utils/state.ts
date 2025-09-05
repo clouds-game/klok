@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { base64ToDataUrl } from './time'
 
 // MIDI note representation (matches Rust `Note` returned from `load_midi`)
@@ -33,6 +33,12 @@ export const useAppState = defineStore('app', () => {
 
   const reset = () => {
     _title.value = null
+    const oldStreamUrl = streamUrl.value
+    nextTick(() => {
+      if (oldStreamUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(oldStreamUrl)
+      }
+    })
     streamUrl.value = null
     duration.value = 1
     currentTime.value = 0

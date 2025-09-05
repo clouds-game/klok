@@ -56,7 +56,7 @@ onMounted(() => {
 
     <section class="flex flex-col flex-1 bg-[rgba(255,255,255,0.03)] p-4 rounded-lg">
       <div class="flex-1 h-[60vh]">
-        <Lyrics :lyrics="state.lyrics" :activeIndex="state.activeIndex" />
+        <Lyrics :lyrics="state.lyrics" :activeIndex="state.activeIndex" @seek-to="t => state.seekTo(t)" />
       </div>
       <div class="flex-1 mt-4 h-[20vh]">
         <MidiView :notes="state.notes || []" :left_time="state.activeLeftTime" :right_time="state.activeRightTime" />
