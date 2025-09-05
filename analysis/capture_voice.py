@@ -4,18 +4,18 @@ import time
 import numpy as np
 import librosa
 import threading
-import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
+
 # %%
 CHANNELS = 1
 RATE = 44100  # 采样率
 CHUNK = 1024  # 每次读取的音频块大小
 RECORD_SECONDS = 0  # 0表示无限录制
-# %%
 
+# %%
 latest_pitch_data = None
 is_running = True
 pitch_lock = threading.Lock()
+
 # %%
 
 
@@ -97,55 +97,29 @@ def audio_processing_thread():
   finally:
     print("音频处理线程已退出")
 # %%
+from flask import Flask, jsonify
 
+app = Flask(__name__)
 
-class PitchServerHandler(BaseHTTPRequestHandler):
-  """HTTP请求处理器"""
+@app.route('/pitch', methods=['GET'])
+def get_pitch():
+  with pitch_lock:
+    pitch_data = latest_pitch_data
+  return jsonify({'status': 'success', 'data': pitch_data if pitch_data else {}})
 
-  def _set_response(self, status_code=200, content_type='application/json'):
-    self.send_response(status_code)
-    self.send_header('Content-type', content_type)
-    self.end_headers()
-
-  def do_GET(self):
-    """处理GET请求"""
-    match self.path:
-      case '/pitch':
-        # 返回最新的音高
-        with pitch_lock:
-          pitch_data = latest_pitch_data
-
-        response = {
-            'status': 'success',
-            'data': pitch_data if pitch_data else {},
-        }
-        self._set_response()
-        self.wfile.write(json.dumps(response).encode('utf-8'))
-      case _:
-        self._set_response(404)
-        self.wfile.write(json.dumps({
-            'status': 'error',
-            'message': '路径不存在'
-        }).encode('utf-8'))
-
-
-def run_http_server(server_class=HTTPServer, handler_class=PitchServerHandler, port=8000):
-  """启动HTTP服务器"""
-  server_address = ('', port)
-  httpd = server_class(server_address, handler_class)
+def run_http_server(port=8000, host='localhost'):
+  """启动Flask HTTP服务器"""
   print(f"HTTP服务器已启动, 监听端口 {port}")
   print(f"可用接口: http://localhost:{port}/pitch")
-
   try:
-    httpd.serve_forever()
+    # use_reloader=False to avoid spawning child processes which can duplicate audio threads
+    app.run(host=host, port=port, debug=True, threaded=True, use_reloader=False)
   except KeyboardInterrupt:
     pass
   finally:
-    httpd.server_close()
     print("HTTP服务器已停止")
+
 # %%
-
-
 def main():
   audio_thread = threading.Thread(target=audio_processing_thread, daemon=True)
   audio_thread.start()
