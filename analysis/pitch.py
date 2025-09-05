@@ -40,7 +40,7 @@ def get_audio_pitches(y: np.ndarray, sr: int, hop_length: int = 512, audio_path:
   sr: 采样率
   duration: 音频总时长（秒）
   """
-  cache_path = audio_path and audio_path.with_name(audio_path.stem + "_pitches.npz")
+  cache_path = audio_path and audio_path.with_name(audio_path.stem + "_pyin.npz")
   if cache_path and cache_path.exists():
     pitches, voiced_flag, voiced_prob, rms = _load_pitch_analysis(cache_path)
   else:

@@ -52,7 +52,10 @@ function onProgressClick(e: MouseEvent) {
 watch(() => props.isPlaying, (val) => {
   const el = player.value
   if (!el) return
-  if (val && el.paused) el.play?.()
+  if (val && el.paused) {
+    el.currentTime = props.currentTime // sync time before play
+    el.play?.()
+  }
   else if (!val && !el.paused) el.pause?.()
 }, { immediate: true })
 

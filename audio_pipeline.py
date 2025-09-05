@@ -159,14 +159,14 @@ class AudioPipeline:
         notes = pitch_to_midi_notes(pitches, rms, sr, hop_length=self.hop_length)
 
         # Save MIDI file
-        midi_path = output_dir / f"{vocals_path.stem}_pitch.mid"
+        midi_path = output_dir / f"{vocals_path.stem}_pyin.mid"
         notes_to_midi(notes, midi_path)
 
         return midi_path
 
     def _generate_basic_pitch_midi(self, vocals_path: Path, output_dir: Path) -> Path:
         """Generate MIDI using Basic Pitch neural network."""
-        midi_path = output_dir / f"{vocals_path.stem}_basic_pitch.mid"
+        midi_path = output_dir / f"{vocals_path.stem}_pitches.mid"
         transform_to_midi(vocals_path, midi_path)
         return midi_path
 

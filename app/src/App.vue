@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, nextTick } from 'vue'
+import { onMounted, nextTick, onUnmounted } from 'vue'
 import Controller from './components/Controller.vue'
 import Lyrics from './components/Lyrics.vue'
 import MidiView from './components/MidiView.vue'
@@ -26,7 +26,40 @@ function loadFile(e: Event) {
 onMounted(() => {
   // if there's a bundled resource, you could pre-load it here
   state.fileUrl = "我的一个道姑朋友.m4a"
+  state.lyricsGlobalDelta = -0.8
 })
+
+function handleShortcuts(e: KeyboardEvent): boolean {
+  const isSpace = e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar'
+  const isLeft = e.code === 'ArrowLeft' || e.key === 'ArrowLeft'
+  const isRight = e.code === 'ArrowRight' || e.key === 'ArrowRight'
+
+  if (isSpace) {
+    state.togglePlay()
+  } else if (isLeft) {
+    state.seekTo(state.currentTime - 2)
+  } else if (isRight) {
+    state.seekTo(state.currentTime + 2)
+  } else {
+    return false
+  }
+  return true
+}
+
+// Toggle play/pause with Spacebar unless focus is inside an input-like element
+function onKeydown(e: KeyboardEvent) {
+  const active = document.activeElement as HTMLElement | null
+  if (active) {
+    const tag = active.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) return
+  }
+  if (handleShortcuts(e)) {
+    e.preventDefault()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 // ended event handled via play-state false when media ends (vidstack emits pause)
 
@@ -56,7 +89,7 @@ onMounted(() => {
 
     <section class="flex flex-col flex-1 bg-[rgba(255,255,255,0.03)] p-4 rounded-lg">
       <div class="flex-1 h-[60vh]">
-        <Lyrics :lyrics="state.lyrics" :activeIndex="state.activeIndex" />
+        <Lyrics :lyrics="state.lyrics" :activeIndex="state.activeIndex" @seek-to="t => state.seekTo(t)" />
       </div>
       <div class="flex-1 mt-4 h-[20vh]">
         <MidiView :notes="state.notes || []" :left_time="state.activeLeftTime" :right_time="state.activeRightTime" />

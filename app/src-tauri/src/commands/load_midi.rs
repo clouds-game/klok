@@ -23,7 +23,7 @@ pub fn load_midi(state: State<'_, AppState>, path: String) -> Result<Vec<Note>, 
     return Err("path argument is empty".to_string());
   }
 
-  let path = with_extension(&path, "_vocals.mid");
+  let path = with_extension(&path, "_vocals_pitches.mid");
 
   let resolved = state.resolve(&path).ok_or_else(|| format!("resource not found: {}", path))?;
 
@@ -115,9 +115,9 @@ pub fn load_midi_from_memory(content: &[u8]) -> Result<Vec<Note>, String> {
 
 #[test]
 pub fn test_midi() {
-  let content = include_bytes!("../../../../res/我的一个道姑朋友_vocals.mid");
+  let content = include_bytes!("../../../../res/我的一个道姑朋友_vocals_pitches.mid");
 
   let notes = load_midi_from_memory(content).expect("failed to parse midi from memory");
   println!("{:?}", notes.iter().take(10).collect::<Vec<_>>());
-  assert_eq!(notes.len(), 18568);
+  assert_eq!(notes.len(), 768);
 }
