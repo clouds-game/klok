@@ -21,7 +21,14 @@ let raf = 0
 
 const redraw = () => {
   const notes = props.notes
-  drawNotes(canvas.value, notes, { duration: state.duration, current_time: state.currentTime, left_time: props.left_time, right_time: props.right_time })
+  drawNotes(canvas.value, notes, {
+    duration: state.duration,
+    current_time: state.currentTime,
+    left_time: props.left_time,
+    right_time: props.right_time,
+    min_note: 50,
+    max_note: 80,
+  })
 }
 const resizeObserver = new ResizeObserver(redraw)
 

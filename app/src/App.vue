@@ -26,6 +26,7 @@ function loadFile(e: Event) {
 onMounted(() => {
   // if there's a bundled resource, you could pre-load it here
   state.fileUrl = "我的一个道姑朋友.m4a"
+  state.lyricsGlobalDelta = -0.8
 })
 
 // ended event handled via play-state false when media ends (vidstack emits pause)

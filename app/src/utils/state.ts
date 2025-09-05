@@ -24,7 +24,24 @@ export const useAppState = defineStore('app', () => {
   const metadata = ref<Metadata | null>(null)
   const notes = ref<MidiNote[] | null>(null)
 
-  const lyrics = computed(() => Array.from(metadata.value?.lyrics || []))
+  // Keep original lyrics exactly as provided by metadata
+  const originalLyrics = computed(() => Array.from(metadata.value?.lyrics || []))
+
+  // Ad-hoc per-lyric time deltas (index -> seconds). This lets the UI adjust lyric timing
+  // without mutating the underlying `metadata.lyrics` array.
+  // Note: using index-based keys is simple and suitable for ad-hoc adjustments.
+  const lyricsTimeDelta = ref<Record<number, number>>({})
+
+  // Global delta applied to all lyrics (seconds). Useful for shifting entire lyric track.
+  const lyricsGlobalDelta = ref<number>(0)
+
+  // Computed adjusted lyrics view which applies any time deltas to the original lyrics.
+  const lyrics = computed(() =>
+    originalLyrics.value.map((l, i) => ({
+      ...l,
+      time: l.time + (lyricsGlobalDelta.value || 0) + (lyricsTimeDelta.value[i] || 0),
+    }))
+  )
 
   const title = computed(() => _title.value || 'No Title')
   const setTitle = (newTitle: string) => {
@@ -123,6 +140,36 @@ export const useAppState = defineStore('app', () => {
   const setVolume = (v: number) => { volume.value = v }
   const setDuration = (v: number) => { duration.value = v }
 
+  // Adjust a lyric's time by an ad-hoc delta (seconds). Passing 0 clears the per-line delta.
+  const setLyricLineDelta = (index: number, delta: number) => {
+    if (delta === 0) {
+      if (index in lyricsTimeDelta.value) {
+        // remove key immutably so Vue picks up change
+        const copy = { ...lyricsTimeDelta.value }
+        delete copy[index]
+        lyricsTimeDelta.value = copy
+      }
+    } else {
+      lyricsTimeDelta.value = { ...lyricsTimeDelta.value, [index]: delta }
+    }
+  }
+
+  // Set a global delta (seconds) applied to all lyric lines. Passing 0 clears it.
+  const setLyricDelta = (delta: number) => {
+    lyricsGlobalDelta.value = delta
+  }
+
+  // Clear a specific delta or all deltas when index is omitted
+  const clearLyricTimeDelta = (index?: number) => {
+    if (index === undefined) {
+      lyricsTimeDelta.value = {}
+    } else if (index in lyricsTimeDelta.value) {
+      const copy = { ...lyricsTimeDelta.value }
+      delete copy[index]
+      lyricsTimeDelta.value = copy
+    }
+  }
+
   return {
     title,
     fileUrl,
@@ -134,6 +181,10 @@ export const useAppState = defineStore('app', () => {
     metadata,
     notes,
     lyrics,
+    // original unmodified lyrics and per-index deltas
+    originalLyrics,
+    lyricsTimeDelta,
+    lyricsGlobalDelta,
     activeIndex,
     activeLeftTime,
     activeRightTime,
@@ -145,5 +196,8 @@ export const useAppState = defineStore('app', () => {
     seekTo,
     setVolume,
     setDuration,
+    setLyricLineDelta,
+    setLyricDelta,
+    clearLyricTimeDelta,
   }
 })

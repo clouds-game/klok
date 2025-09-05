@@ -12,6 +12,12 @@ type DrawOptions = {
   current_time?: number
   left_time?: number
   right_time?: number
+  min_note?: number
+  max_note?: number
+}
+
+function isValidNumber(v: any): v is number {
+  return typeof v === 'number' && !Number.isNaN(v) && isFinite(v)
 }
 
 export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | null, opts: DrawOptions = {}) {
@@ -48,6 +54,8 @@ export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | 
   }
   if (!isFinite(minNote)) minNote = 21
   if (!isFinite(maxNote)) maxNote = 108
+  if (isValidNumber(opts.min_note)) minNote = opts.min_note
+  if (isValidNumber(opts.max_note)) maxNote = opts.max_note
   minNote = Math.max(0, Math.floor(minNote) - 1)
   maxNote = Math.min(127, Math.ceil(maxNote) + 1)
   const noteRange = Math.max(1, maxNote - minNote)
@@ -56,8 +64,8 @@ export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | 
     ? opts.duration
     : (ns.length > 0 ? (ns[ns.length - 1].start + ns[ns.length - 1].duration) : 1)
 
-  const viewStart = (opts.left_time !== undefined && !Number.isNaN(opts.left_time)) ? opts.left_time : 0
-  const viewEnd = (opts.right_time !== undefined && !Number.isNaN(opts.right_time)) ? opts.right_time : rawTotal
+  const viewStart = isValidNumber(opts.left_time) ? opts.left_time : 0
+  const viewEnd = isValidNumber(opts.right_time) ? opts.right_time : rawTotal
   const visibleDuration = Math.max(0.001, viewEnd - viewStart)
 
   const clip = (value: number, min: number = 0, max: number = 1) => Math.min(Math.max(value, min), max)
@@ -135,5 +143,3 @@ export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | 
     }
   }
 }
-
-export default { drawPianoRoll: drawNotes }
