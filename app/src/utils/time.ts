@@ -20,12 +20,38 @@ export function base64ToDataUrl(dataUrl: string): string {
   // Separate the Base64 data from the prefix.
   const base64Data = dataUrl.split(',')[1]
   // @ts-ignore
-  const uint8Array: Uint8Array<ArrayBuffer> = Uint8Array.fromBase64(base64Data)
+  // Polyfill Uint8Array.fromBase64 if not present.
+  if (typeof (Uint8Array as any).fromBase64 !== 'function') {
+    (Uint8Array as any).fromBase64 = function (base64: string): Uint8Array {
+      // Browser: use atob
+      if (typeof atob === 'function') {
+        const binary = atob(base64)
+        const len = binary.length
+        const bytes = new Uint8Array(len)
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i)
+        return bytes
+      }
 
+
+      // Fallback (should rarely be needed)
+      throw new Error('No base64 decoder available in this environment')
+    }
+  }
+
+  const uint8Array: Uint8Array<ArrayBuffer> = (Uint8Array as any).fromBase64(base64Data)
   // Create a Blob from the Uint8Array.
   const blob = new Blob([uint8Array], { type: mimeType })
 
   console.log(dataUrl.length, uint8Array.length, blob.type, blob.size)
   // Create and return the temporary object URL.
   return URL.createObjectURL(blob)
+}
+
+export function uint8ArrayToDataUrl(data: Uint8Array<ArrayBuffer>, mimeType: string = 'audio/mpeg'): string {
+  const blob = new Blob([data], { type: mimeType })
+  return URL.createObjectURL(blob)
+}
+
+export function resolveAudioUrl(data: string): string {
+  return data.startsWith('data:') ? base64ToDataUrl(data) : data
 }

@@ -1,7 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, nextTick } from 'vue'
-import { base64ToDataUrl } from './time'
+import { uint8ArrayToDataUrl } from './time'
+import { State } from 'vidstack/types/vidstack-BNOTL9fc.js'
+
 
 // MIDI note representation (matches Rust `Note` returned from `load_midi`)
 type MidiNote = {
@@ -13,10 +15,18 @@ type MidiNote = {
   confidence?: number | null
 }
 
+export type PlayListItem = {
+  title: string
+  artist?: string
+  url: string
+}
+
 export const useAppState = defineStore('app', () => {
+  const playList = ref<PlayListItem[]>([])
   const fileUrl = ref<string | null>(null)
   const _title = ref<string | null>(null)
   const streamUrl = ref<string | null>(null)
+  const vocalUrl = ref<string | null>(null)
   const isPlaying = ref(false)
   const duration = ref(1)
   const currentTime = ref(0)
@@ -62,6 +72,16 @@ export const useAppState = defineStore('app', () => {
     metadata.value = null
   }
 
+  const loadPlaylist = async () => {
+    try {
+      const pl = await invoke('load_playlist') as PlayListItem[]
+      playList.value = pl
+    } catch (e) {
+      // ignore, optional
+      console.warn('load_playlist failed', e)
+    }
+  }
+
   const loadMetadata = async (newUrl: string) => {
     try {
       // fetch metadata
@@ -83,12 +103,15 @@ export const useAppState = defineStore('app', () => {
     // fetch audio content from rust backend as data URL for bundled resource
     // store it in `streamUrl` so we don't overwrite any user-selected `fileUrl`
     try {
-      const data = await invoke('load_audio', { path: newUrl }) as string
-      if (data.startsWith("data:")) {
-        streamUrl.value = base64ToDataUrl(data)
-      } else {
-        streamUrl.value = data
-      }
+      const name = newUrl.split(".")[0]
+
+      const vocalData_ = await invoke('load_audio', { path: `${name}_vocals.mp3` }) as Array<number>
+      const accompanyData_ = await invoke('load_audio', { path: `${name}_non_vocals.mp3` }) as Array<number>
+      const vocalData = Uint8Array.from(vocalData_)
+      const accompanyData = Uint8Array.from(accompanyData_)
+
+      streamUrl.value = uint8ArrayToDataUrl(accompanyData)
+      vocalUrl.value = uint8ArrayToDataUrl(vocalData)
     } catch (e) {
       // fallback: keep using builtin file name
       console.warn('load_audio failed', e)
@@ -136,7 +159,7 @@ export const useAppState = defineStore('app', () => {
   })
 
   const togglePlay = (b?: boolean) => { isPlaying.value = b !== undefined ? b : !isPlaying.value }
-  const seekTo = (v: number) => { console.log("seekTo", v); currentTime.value = v }
+  const seekTo = (v: number) => { currentTime.value = v }
   const setVolume = (v: number) => { volume.value = v }
   const setDuration = (v: number) => { duration.value = v }
 
@@ -170,10 +193,17 @@ export const useAppState = defineStore('app', () => {
     }
   }
 
+  const switchToSong = (url: string) => {
+    isPlaying.value = false
+    fileUrl.value = url
+  }
+
   return {
+    playList,
     title,
     fileUrl,
     streamUrl,
+    vocalUrl,
     isPlaying,
     duration,
     currentTime,
@@ -189,6 +219,7 @@ export const useAppState = defineStore('app', () => {
     activeLeftTime,
     activeRightTime,
     setTitle,
+    loadPlaylist,
     loadMetadata,
     loadAudio,
     loadMidi,
@@ -199,5 +230,6 @@ export const useAppState = defineStore('app', () => {
     setLyricLineDelta,
     setLyricDelta,
     clearLyricTimeDelta,
+    switchToSong,
   }
 })
