@@ -51,6 +51,36 @@ def hz_to_note(frequency: float) -> str:
   note_index = (semitones_rounded + 9) % 12
   return f"{note_names[note_index]}{octave} {semitones_rounded + 9} ({frequency:.1f} Hz)"
 
+def describe_np(array: np.ndarray) -> str:
+  return f"shape: {array.shape}, dtype: {array.dtype}, min: {np.min(array)}, max: {np.max(array)}, mean: {np.mean(array):.4f}, std: {np.std(array):.4f}"
+
+def handle_frame(stream: sd.InputStream):
+  # read returns (frames, overflow)
+  frames, overflow = stream.read(CHUNK)
+  if overflow:
+    # overflow is a boolean array or flag; if True, skip this block
+    # print("缓冲区溢出，跳过此帧", frames)
+    return None
+  print(describe_np(frames))
+  # frames shape: (CHUNK, CHANNELS) -> squeeze to 1D for mono
+  audio_data = np.squeeze(np.array(frames, dtype=np.float32))
+  # 检测音高
+  pitch = detect_pitch(audio_data)
+  # 显示结果
+  if pitch:
+    midi = librosa.hz_to_midi(pitch)
+    note = librosa.hz_to_note(pitch)
+    print(f"当前音高: {midi:.2f} MIDI, {note}")
+    pitch_data = {
+        "midi": midi,
+        "note": note,
+        "pitch": pitch,
+    }
+    global latest_pitch_data
+    with pitch_lock:
+      latest_pitch_data = pitch_data
+  else:
+    print("未检测到有效音高...")
 
 def audio_processing_thread():
   start_time = time.time()
@@ -59,35 +89,13 @@ def audio_processing_thread():
     # Use sounddevice InputStream which is usually easier to install on macOS
     with sd.InputStream(samplerate=RATE, channels=CHANNELS, dtype='float32', blocksize=CHUNK) as stream:
       while is_running:
-        # read returns (frames, overflow)
-        frames, overflow = stream.read(CHUNK)
-        if overflow:
-          # overflow is a boolean array or flag; if True, skip this block
-          print("缓冲区溢出，跳过此帧", frames.shape)
-          continue
-        # frames shape: (CHUNK, CHANNELS) -> squeeze to 1D for mono
-        audio_data = np.squeeze(np.array(frames, dtype=np.float32))
-        # 检测音高
-        pitch = detect_pitch(audio_data)
-        # 显示结果
-        if pitch:
-          midi = librosa.hz_to_midi(pitch)
-          note = librosa.hz_to_note(pitch)
-          print(f"当前音高: {midi:.2f} MIDI, {note}")
-          pitch_data = {
-              "midi": midi,
-              "note": note,
-              "pitch": pitch,
-          }
-          global latest_pitch_data
-          with pitch_lock:
-            latest_pitch_data = pitch_data
-        else:
-          print("未检测到有效音高...")
+        handle_frame(stream)
         # 短暂延迟，减少CPU占用
         time.sleep(0.05)
   except Exception as e:
     print(f"检测已停止: {e}")
+  finally:
+    print("音频处理线程已退出")
 # %%
 
 
