@@ -25,7 +25,7 @@ const playoriginal = ref<boolean>(true)
 
 // media-player event handlers
 function handleTimeUpdate() {
-  console.log("Time update:", player.value?.currentTime)
+  // console.log("Time update:", player.value?.currentTime)
   if (player.value?.currentTime == null) return
   // @ts-ignore custom element exposes currentTime
   const ct = player.value.currentTime

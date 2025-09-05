@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, nextTick } from 'vue'
 import { uint8ArrayToDataUrl } from './time'
+import { State } from 'vidstack/types/vidstack-BNOTL9fc.js'
 
 
 // MIDI note representation (matches Rust `Note` returned from `load_midi`)
@@ -14,7 +15,14 @@ type MidiNote = {
   confidence?: number | null
 }
 
+export type PlayListItem = {
+  title: string
+  artist?: string
+  url: string
+}
+
 export const useAppState = defineStore('app', () => {
+  const playList = ref<PlayListItem[]>([])
   const fileUrl = ref<string | null>(null)
   const _title = ref<string | null>(null)
   const streamUrl = ref<string | null>(null)
@@ -62,6 +70,16 @@ export const useAppState = defineStore('app', () => {
     duration.value = 1
     currentTime.value = 0
     metadata.value = null
+  }
+
+  const loadPlaylist = async () => {
+    try {
+      const pl = await invoke('load_playlist') as PlayListItem[]
+      playList.value = pl
+    } catch (e) {
+      // ignore, optional
+      console.warn('load_playlist failed', e)
+    }
   }
 
   const loadMetadata = async (newUrl: string) => {
@@ -141,7 +159,7 @@ export const useAppState = defineStore('app', () => {
   })
 
   const togglePlay = (b?: boolean) => { isPlaying.value = b !== undefined ? b : !isPlaying.value }
-  const seekTo = (v: number) => { console.log("seekTo", v); currentTime.value = v }
+  const seekTo = (v: number) => { currentTime.value = v }
   const setVolume = (v: number) => { volume.value = v }
   const setDuration = (v: number) => { duration.value = v }
 
@@ -175,7 +193,12 @@ export const useAppState = defineStore('app', () => {
     }
   }
 
+  const switchToSong = (url: string) => {
+    fileUrl.value = url
+  }
+
   return {
+    playList,
     title,
     fileUrl,
     streamUrl,
@@ -195,6 +218,7 @@ export const useAppState = defineStore('app', () => {
     activeLeftTime,
     activeRightTime,
     setTitle,
+    loadPlaylist,
     loadMetadata,
     loadAudio,
     loadMidi,
@@ -205,5 +229,6 @@ export const useAppState = defineStore('app', () => {
     setLyricLineDelta,
     setLyricDelta,
     clearLyricTimeDelta,
+    switchToSong,
   }
 })

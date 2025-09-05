@@ -23,9 +23,11 @@ function loadFile(e: Event) {
     })
 }
 
-onMounted(() => {
+onMounted(async () => {
   // if there's a bundled resource, you could pre-load it here
-  state.fileUrl = "我的一个道姑朋友.m4a"
+  await state.loadPlaylist()
+  console.log('Initial playlist finish')
+  state.fileUrl = state.playList[0]?.url
   state.lyricsGlobalDelta = -0.8
 })
 
@@ -83,7 +85,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   <!-- native <audio> removed; Controller's <media-player> handles playback -->
 
       <div class="mt-4">
-        <Playlist :items="[{ title: state.title, artist: state.metadata?.artist, url: state.metadata?.url }]" />
+        <Playlist :items="state.playList" :current_url="state.fileUrl!"
+          @switch_song="state.switchToSong"
+        />
       </div>
     </section>
 
