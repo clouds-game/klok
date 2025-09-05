@@ -13,10 +13,20 @@ wheels/
 
 uv.lock
 
+# Audio processing outputs
 *_vocals.mp3
+*_vocals.wav
+*_non_vocals.mp3
+*_non_vocals.wav
+*_pitch.mid
+*_basic_pitch.mid
 *.npz
 *.midi
 *.mid
+
+# Example outputs
+output/
+temp/
 
 pnpm-lock.yaml
 yarn.lock

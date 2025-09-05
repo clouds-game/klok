@@ -9,7 +9,7 @@ import pretty_midi
 import scipy
 from scipy.io import wavfile
 
-from constants import (
+from .constants import (
     AUDIO_SAMPLE_RATE,
     ANNOTATIONS_N_SEMITONES,
     ANNOTATIONS_BASE_FREQUENCY,

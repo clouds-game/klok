@@ -10,13 +10,13 @@ import numpy as np
 import numpy.typing as npt
 import librosa
 
-from constants import (
+from .constants import (
     AUDIO_SAMPLE_RATE,
     AUDIO_N_SAMPLES,
     ANNOTATIONS_FPS,
     FFT_HOP,
 )
-import note_creation as infer
+from . import note_creation as infer
 # %%
 
 ICASSP_2022_MODEL_PATH = Path(__file__).parent.parent.parent / "res/nmp.onnx"

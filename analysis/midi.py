@@ -2,17 +2,13 @@
 """解析 MIDI 文件并按时间段提取与展示音高的工具。
 """
 
-from pathlib import Path
 from dataclasses import dataclass
 from plottings import plot_notes
 
 import mido
 import matplotlib.pyplot as plt
 
-workspace_dir = Path(__file__).parent.parent
-base_name = "我的一个道姑朋友"
-midi_path = workspace_dir / f"res/{base_name}_vocals.mid"
-
+TEMPO = 500000  # 默认微秒/四分音符
 # %%
 @dataclass
 class Note:
@@ -122,14 +118,18 @@ def hist_notes(mid: list[Note]) -> dict[int, int]:
   plt.title('MIDI Note Histogram')
   plt.grid(axis='y', linestyle='--', alpha=0.7)
   plt.show()
-# %%
-tempo = 500000  # 默认微秒/四分音符
-mid = mido.MidiFile(midi_path)
-notes = extract_notes(mid)
-
-plot_notes(notes, mid.ticks_per_beat / tempo * 1e6, title=base_name)
-hist_notes(notes)
 
 # %%
+if __name__ == "__main__":
+  from pathlib import Path
+
+  workspace_dir = Path(__file__).parent.parent
+  base_name = "我的一个道姑朋友"
+  midi_path = workspace_dir / f"res/{base_name}_vocals.mid"
+  mid = mido.MidiFile(midi_path)
+  notes = extract_notes(mid)
+
+  plot_notes(notes, mid.ticks_per_beat / TEMPO * 1e6, title=base_name)
+  hist_notes(notes)
 
 # %%
