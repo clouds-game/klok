@@ -1,119 +1,122 @@
-#!/usr/bin/env python3
-"""Plot the live microphone signal(s) with matplotlib.
+# %%
+from pathlib import Path
+workspace_dir = Path(__file__).parent.parent
 
-Matplotlib and NumPy have to be installed.
-
-"""
-import argparse
-import queue
-import sys
-
-from matplotlib.animation import FuncAnimation
-import matplotlib.pyplot as plt
-import numpy as np
 import sounddevice as sd
+import numpy as np
+import queue
+
+# %%
+RATE = 44100
+CHANNELS = 1
+CHUNK = 4096
+BUFFER_MILLISECONDS = 1000
+
+class AudioStream:
+  def __init__(self, samplerate=RATE, channels=CHANNELS, buffer_milliseconds=BUFFER_MILLISECONDS, downsample=10, blocksize=CHUNK):
+    self.buffer_len = int(samplerate * buffer_milliseconds / (1000 * downsample))
+    self._ring_buffer = np.zeros((channels, self.buffer_len), dtype='float32')
+    self.samplerate = samplerate
+    self.channels = channels
+    self.blocksize = blocksize
+    self.downsample = downsample
+    self.q = queue.Queue()
+
+  def sync_ring_buffer(self):
+    # print("sync_ring_buffer", self.q.qsize(), self.q.empty())
+    while not self.q.empty():
+      try:
+        data = self.q.get_nowait() # type: np.ndarray
+      except queue.Empty:
+        break
+      shift = data.shape[1]
+      # print("sync_ring_buffer got data:", describe_np(data), "shift:", shift)
+      if shift >= self.buffer_len:
+        # assert False, "Unexpected large shift"
+        self._ring_buffer = data[:, -self.buffer_len:]
+      else:
+        self._ring_buffer = np.roll(self._ring_buffer, -shift, axis=1)
+        self._ring_buffer[:, -shift:] = data
+
+  @property
+  def ring_buffer(self):
+    self.sync_ring_buffer()
+    return self._ring_buffer
+
+  def __enter__(self):
+    def audio_callback(indata: np.ndarray, frames_count, time_info, status):
+      # print("callback", indata.shape, describe_np(indata))
+      if status:
+        print('Audio status:', status)
+      self.q.put(indata[::self.downsample, :].T)
+    self.stream = sd.InputStream(samplerate=self.samplerate, channels=self.channels, dtype='float32', callback=audio_callback)
+    self.stream.__enter__()
+    return self
+
+  def __exit__(self, exc_type, exc_value, traceback):
+    self.stream.__exit__(exc_type, exc_value, traceback)
 
 
-def int_or_str(text):
-  """Helper function for argument parsing."""
-  try:
-    return int(text)
-  except ValueError:
-    return text
+def describe_np(array: np.ndarray) -> str:
+  return f"shape: {array.shape}, dtype: {array.dtype}, min: {np.min(array)}, max: {np.max(array)}, mean: {np.mean(array):.4f}, std: {np.std(array):.4f}"
 
+# %%
 
-parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument(
-  '-l', '--list-devices', action='store_true',
-  help='show list of audio devices and exit')
-args, remaining = parser.parse_known_args()
-if args.list_devices:
-  print(sd.query_devices())
-  parser.exit(0)
-parser = argparse.ArgumentParser(
-  description=__doc__,
-  formatter_class=argparse.RawDescriptionHelpFormatter,
-  parents=[parser])
-parser.add_argument(
-  'channels', type=int, default=[1], nargs='*', metavar='CHANNEL',
-  help='input channels to plot (default: the first)')
-parser.add_argument(
-  '-d', '--device', type=int_or_str,
-  help='input device (numeric ID or substring)')
-parser.add_argument(
-  '-w', '--window', type=float, default=200, metavar='DURATION',
-  help='visible time slot (default: %(default)s ms)')
-parser.add_argument(
-  '-i', '--interval', type=float, default=30,
-  help='minimum time between plot updates (default: %(default)s ms)')
-parser.add_argument(
-  '-b', '--blocksize', type=int, help='block size (in samples)')
-parser.add_argument(
-  '-r', '--samplerate', type=float, help='sampling rate of audio device')
-parser.add_argument(
-  '-n', '--downsample', type=int, default=10, metavar='N',
-  help='display every Nth sample (default: %(default)s)')
-args = parser.parse_args(remaining)
-if any(c < 1 for c in args.channels):
-  parser.error('argument CHANNEL: must be >= 1')
-mapping = [c - 1 for c in args.channels]  # Channel numbers start with 1
-q = queue.Queue()
+import matplotlib
+# matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from matplotlib.axes import Axes
+plt.rcParams['font.sans-serif'] = [
+  'SimHei',            # common on many systems
+  'PingFang SC',       # macOS modern Chinese font
+  'Heiti SC',
+  'Noto Sans CJK SC',  # Google Noto CJK
+  'Arial Unicode MS',
+  'DejaVu Sans'
+]
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['axes.unicode_minus'] = False
 
+class Plotting:
+  def __init__(self, stream: AudioStream):
+    fig, axes = plt.subplots(2, 1)
+    self.figure = fig
+    self.axes = axes # type: Axes
+    self.lines = Plotting.plot_line(axes[0], stream.ring_buffer)
+    self.figure.tight_layout(pad=0)
+    self.stream = stream
 
-def audio_callback(indata, frames, time, status):
-  """This is called (from a separate thread) for each audio block."""
-  if status:
-    print(status, file=sys.stderr)
-  # Fancy indexing with mapping creates a (necessary!) copy:
-  q.put(indata[::args.downsample, mapping])
+  @staticmethod
+  def plot_line(ax: Axes, plotdata: np.ndarray):
+    lines = ax.plot(*list(plotdata))
+    ax.axis((0, plotdata.shape[1], -1, 1))
+    ax.set_yticks([0])
+    ax.yaxis.grid(True)
+    ax.tick_params(bottom=False, top=False, labelbottom=False,
+              right=False, left=False, labelleft=False)
+    return lines
 
+  def update_line(self):
+    for (line, data) in zip(self.lines, self.stream.ring_buffer):
+      line.set_ydata(data[-len(line.get_ydata()):])
 
-def update_plot(frame):
-  """This is called by matplotlib for each plot update.
+  def update_plot(self, frames):
+    print("update_plot", describe_np(self.stream.ring_buffer))
+    self.update_line()
+    return self.axes
 
-  Typically, audio callbacks happen more frequently than plot updates,
-  therefore the queue tends to contain multiple blocks of audio data.
+if __name__ == "__main__":
+  device_info = sd.query_devices(None, 'input')
+  print("device_info:", device_info)
+  samplerate = device_info['default_samplerate']
+  stream = AudioStream(samplerate=samplerate)
+  plots = Plotting(stream)
+  # fig.tight_layout(pad=0)
 
-  """
-  global plotdata
-  while True:
-    try:
-      data = q.get_nowait()
-    except queue.Empty:
-      break
-    shift = len(data)
-    plotdata = np.roll(plotdata, -shift, axis=0)
-    plotdata[-shift:, :] = data
-  for column, line in enumerate(lines):
-    line.set_ydata(plotdata[:, column])
-  return lines
-
-
-try:
-  if args.samplerate is None:
-    device_info = sd.query_devices(args.device, 'input')
-    args.samplerate = device_info['default_samplerate']
-
-  length = int(args.window * args.samplerate / (1000 * args.downsample))
-  plotdata = np.zeros((length, len(args.channels)))
-
-  fig, ax = plt.subplots()
-  lines = ax.plot(plotdata)
-  if len(args.channels) > 1:
-    ax.legend([f'channel {c}' for c in args.channels],
-          loc='lower left', ncol=len(args.channels))
-  ax.axis((0, len(plotdata), -1, 1))
-  ax.set_yticks([0])
-  ax.yaxis.grid(True)
-  ax.tick_params(bottom=False, top=False, labelbottom=False,
-           right=False, left=False, labelleft=False)
-  fig.tight_layout(pad=0)
-
-  stream = sd.InputStream(
-    device=args.device, channels=max(args.channels),
-    samplerate=args.samplerate, callback=audio_callback)
-  ani = FuncAnimation(fig, update_plot, interval=args.interval, blit=True)
+  ani = FuncAnimation(plots.figure, lambda f: plots.update_plot(f), interval=50, blit=True)
   with stream:
+    print("Initial ring_buffer:", describe_np(stream.ring_buffer))
     plt.show()
-except Exception as e:
-  parser.exit(type(e).__name__ + ': ' + str(e))
+
+# %%
