@@ -14,6 +14,7 @@ type DrawOptions = {
   right_time?: number
   min_note?: number
   max_note?: number
+  alpha_threshold?: number
 }
 
 function isValidNumber(v: any): v is number {
@@ -95,7 +96,8 @@ export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | 
     const w = Math.max(1, timeToX(n.start + n.duration) - x)
     const y = noteToY(n.note)
     const h = Math.max(4, (cssHeight - 20) / noteRange)
-    const alpha = Math.min(1, 0.25 + (n.velocity / 127) * 0.75)
+    const alphaThreshold = opts.alpha_threshold || 0.3
+    const alpha = Math.min(1, Math.max(n.velocity / 127 - alphaThreshold, 0) / (1 - alphaThreshold))
     ctx.fillStyle = `rgba(40,200,255,${alpha})`
     ctx.fillRect(x, y - h / 2, w, h)
     ctx.strokeStyle = `rgba(0,0,0,0.25)`
