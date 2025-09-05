@@ -1,11 +1,8 @@
 # %%
-
 from pathlib import Path
 
 
 # %%
-
-
 def uc2mp3(uc_file_path, mp3_file_path):
   uc_file = Path(uc_file_path)
   with open(uc_file, 'rb') as f:

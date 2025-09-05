@@ -3,23 +3,13 @@
 import librosa
 import numpy as np
 from pathlib import Path
-import matplotlib.pyplot as plt
 from mido import MidiFile, MidiTrack, Message
 import mido
 
 try:
-    import importlib; import plottings as plottings; importlib.reload(plottings)
-    from plottings import plot_y_time, show_pitch
+  from plottings import plot_y_time, show_pitch
 except ImportError:
-    from . import plottings
-    from .plottings import plot_y_time, show_pitch
-
-workspace_dir = Path(__file__).parent.parent
-
-# %%
-# Constants
-audio_base_name = "我的一个道姑朋友"
-audio_vocals_path = workspace_dir / f"res/{audio_base_name}_vocals.mp3"
+  from .plottings import plot_y_time, show_pitch
 
 # %%
 # 获取音频信息
@@ -40,7 +30,7 @@ def _save_pitch_analysis(pitches: np.ndarray, voiced_flag: np.ndarray, voiced_pr
            voiced_flag=voiced_flag, voiced_prob=voiced_prob, rms=rms)
 
 
-def get_audio_info(y: np.ndarray, sr: int, hop_length: int = 512, audio_path: Path | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def get_audio_pitches(y: np.ndarray, sr: int, hop_length: int = 512, audio_path: Path | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   """
   返回 (pitches, voiced_flag, voiced_prob, rms, sr, duration)
   pitches: 每帧频率(Hz)或 NaN
@@ -50,7 +40,7 @@ def get_audio_info(y: np.ndarray, sr: int, hop_length: int = 512, audio_path: Pa
   sr: 采样率
   duration: 音频总时长（秒）
   """
-  cache_path = audio_path and audio_path.with_suffix('.npz')
+  cache_path = audio_path and audio_path.with_name(audio_path.stem + "_pitches.npz")
   if cache_path and cache_path.exists():
     pitches, voiced_flag, voiced_prob, rms = _load_pitch_analysis(cache_path)
   else:
@@ -153,29 +143,31 @@ def notes_to_midi(notes: list[tuple[float, float, int, int]], output_path: Path,
   mid.save(output_path)
   return output_path
 
+def mp3_to_midi(audio_path: Path):
+  y, sr = librosa.load(str(audio_path), sr=None)
+  pitches, _, _, rms = get_audio_pitches(y, sr, name=audio_path.name)
+  notes = pitch_to_midi_notes(pitches, rms, sr)
+  midi_path = audio_path.with_suffix('.mid')
+  notes_to_midi(notes, midi_path)
 
 if __name__ == "__main__":
-    # Demo/testing code when run as script
-    y, sr = librosa.load(str(audio_vocals_path), sr=None)
-    print(f"音频加载完成 - 采样率: {sr} Hz, 时长: {librosa.get_duration(y=y, sr=sr):.2f} 秒")
+  workspace_dir = Path(__file__).parent.parent
+  audio_base_name = "我的一个道姑朋友"
+  audio_vocals_path = workspace_dir / f"res/{audio_base_name}_vocals.mp3"
+  # Demo/testing code when run as script
+  y, sr = librosa.load(str(audio_vocals_path), sr=None)
+  print(f"音频加载完成 - 采样率: {sr} Hz, 时长: {librosa.get_duration(y=y, sr=sr):.2f} 秒")
 
-    plot_y_time(y, sr=sr, name=audio_vocals_path.name)
+  plot_y_time(y, sr=sr, name=audio_vocals_path.name)
 
-    # Get audio info for demo
-    pitches, voiced_flag, voiced_prob, rms = get_audio_info(y, sr, audio_path=audio_vocals_path)
-    hop_length = 512
+  # Get audio info for demo
+  pitches, voiced_flag, voiced_prob, rms = get_audio_pitches(y, sr, audio_path=audio_vocals_path)
+  hop_length = 512
 
-    # %%
-    show_pitch(pitches, sr=sr/hop_length)
+  show_pitch(pitches, sr=sr/hop_length)
 
-    # %%
-    def mp3_to_midi(audio_path: Path):
-      pitches, _, _, rms, sr, duration = get_audio_info(audio_path)
-      notes = pitch_to_midi_notes(pitches, rms, sr)
-      midi_path = audio_path.with_suffix('.mid')
-      notes_to_midi(notes, midi_path)
+  notes = pitch_to_midi_notes(pitches, rms, sr)
+  midi_path = audio_vocals_path.with_suffix('.mid')
+  notes_to_midi(notes, midi_path)
 
-    # %%
-    notes = pitch_to_midi_notes(pitches, rms, sr)
-    midi_path = audio_vocals_path.with_suffix('.mid')
-    notes_to_midi(notes, midi_path)
+# %%

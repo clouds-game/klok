@@ -3,7 +3,7 @@ name = "klok"
 version = "0.1.0"
 description = "Audio processing pipeline for vocal separation and MIDI generation"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.12"
 dependencies = [
     "demucs>=4.0.1",
     "ipykernel>=6.30.1",
