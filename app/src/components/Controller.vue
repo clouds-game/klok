@@ -73,7 +73,7 @@ watch(() => props.isPlaying, (val) => {
     el.currentTime = props.currentTime // sync time before play
     a.currentTime = props.currentTime
     el.play?.()
-    if (playoriginal.value) a.play?.()
+    a.play?.()
   }
   else if (!val && !el.paused) {
     el.pause?.()

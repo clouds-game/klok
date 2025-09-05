@@ -194,6 +194,7 @@ export const useAppState = defineStore('app', () => {
   }
 
   const switchToSong = (url: string) => {
+    isPlaying.value = false
     fileUrl.value = url
   }
 
