@@ -7,6 +7,31 @@ import numpy as np
 import queue
 import threading
 
+
+class PeriodicCaller(threading.Thread):
+  """Call a function periodically in a background thread.
+
+  interval: seconds between calls
+  func: callable to call
+  """
+  def __init__(self, interval, func, daemon=True):
+    super().__init__(daemon=daemon)
+    self.interval = interval
+    self.func = func
+    self._stop = threading.Event()
+
+  def run(self):
+    # Wait interval first to mimic the previous Timer(0.1, ...)
+    while not self._stop.wait(self.interval):
+      try:
+        self.func()
+      except Exception as e:
+        # don't crash the thread; print for debugging
+        print("PeriodicCaller error:", e)
+
+  def stop(self):
+    self._stop.set()
+
 # %%
 RATE = 44100
 CHANNELS = 1
@@ -26,19 +51,26 @@ class AudioStream:
 
   def _sync_ring_buffer(self):
     # print("sync_ring_buffer", self.q.qsize(), self.q.empty())
+    assert self.ring_buffer_lock.locked()
+    all_data = []
     while not self.q.empty():
       try:
         data = self.q.get_nowait() # type: np.ndarray
+        all_data.append(data)
       except queue.Empty:
         break
-      shift = data.shape[1]
-      # print("sync_ring_buffer got data:", describe_np(data), "shift:", shift)
-      if shift >= self.buffer_len:
-        # assert False, "Unexpected large shift"
-        self._ring_buffer = data[:, -self.buffer_len:]
-      else:
-        self._ring_buffer = np.roll(self._ring_buffer, -shift, axis=1)
-        self._ring_buffer[:, -shift:] = data
+    if not all_data: return
+    data = np.concatenate(all_data, axis=1)
+    shift = data.shape[1]
+    # print("sync_ring_buffer", self.q.qsize(), len(all_data), data.shape, self._ring_buffer.shape)
+    # print("sync_ring_buffer got data:", describe_np(data), "shift:", shift)
+    if shift >= self.buffer_len:
+      # assert False, "Unexpected large shift"
+      self._ring_buffer = data[:, -self.buffer_len:]
+    else:
+      new_ring = np.roll(self._ring_buffer, -shift, axis=1)
+      new_ring[:, -shift:] = data
+      self._ring_buffer = new_ring
 
   @property
   def sr(self):
@@ -59,12 +91,24 @@ class AudioStream:
       return self._ring_buffer[:, -num_samples:]
 
   def __enter__(self):
+    # https://python-sounddevice.readthedocs.io/en/0.5.1/examples.html#plot-microphone-signal-s-in-real-time
     def audio_callback(indata: np.ndarray, frames_count, time_info, status):
       # print("callback", indata.shape, describe_np(indata))
       if status:
         print('Audio status:', status)
-      self.q.put(indata[::self.downsample, :].T)
-    self.stream = sd.InputStream(samplerate=self.samplerate, channels=self.channels, dtype='float32', callback=audio_callback)
+      data = indata[::self.downsample, :].T.copy()
+      try:
+        self.q.put_nowait(data)
+        return
+      except Exception as e:
+        pass
+      # queue full, drop oldest
+      try:
+        self.q.get_nowait()
+        self.q.put_nowait(data)
+      except Exception as e:
+        pass
+    self.stream = sd.InputStream(samplerate=self.samplerate, channels=self.channels, dtype='float32', blocksize=self.blocksize, callback=audio_callback)
     self.stream.__enter__()
     return self
 
@@ -92,9 +136,9 @@ class AudioStreamInfo:
       self.update()
 
   def update(self):
+    # print("update info at time:", time.time(), self.last_update)
     sr = self.stream.sr
     self._buffer = self.stream.get_buffer(self.duration_ms)
-    print(self._buffer.shape)
 
     if self.resample:
       self._y = librosa.resample(self._buffer, orig_sr=sr, target_sr=self.resample, axis=1)
@@ -206,8 +250,8 @@ class Plotting:
     return [self.mel_im]
 
   def update_plot(self, frames):
-    self.stream.update()
-    print("update_plot", describe_np(self.stream.buffer))
+    # self.stream.update()
+    # print("update_plot", describe_np(self.stream.buffer))
     artists = []
     artists.extend(self.update_line())
     artists.extend(self.update_mel())
@@ -220,6 +264,9 @@ if __name__ == "__main__":
   samplerate = device_info['default_samplerate']
   stream = AudioStream(samplerate=samplerate)
   info = AudioStreamInfo(stream=stream, duration_ms=5000, resample=882, n_mels=64, max_freq=8000)
+  # Periodically update info in background to keep spectrograms fresh.
+  caller = PeriodicCaller(0.1, lambda: info.update())
+  caller.start()
   plots = Plotting(info)
   # fig.tight_layout(pad=0)
 
@@ -227,5 +274,7 @@ if __name__ == "__main__":
   with stream:
     print("Initial ring_buffer:", describe_np(stream.ring_buffer))
     plt.show()
+  # stop background updater when the plotting window closes
+  caller.stop()
 
 # %%
