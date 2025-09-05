@@ -84,6 +84,8 @@ class Plotting:
     self.figure = fig
     self.axes = axes # type: Axes
     self.lines = Plotting.plot_line(axes[0], stream.ring_buffer)
+    # Mel spectrogram image artist (initialize with current buffer)
+    self.mel_im = Plotting.plot_mel(axes[1], stream.ring_buffer, stream.samplerate)
     self.figure.tight_layout(pad=0)
     self.stream = stream
 
@@ -97,14 +99,68 @@ class Plotting:
               right=False, left=False, labelleft=False)
     return lines
 
+  @staticmethod
+  def plot_mel(ax: Axes, plotdata: np.ndarray, sr: int):
+    """Create an initial mel-spectrogram image on ax from plotdata.
+
+    Returns the AxesImage so it can be updated later via set_data.
+    """
+    # lazy import to avoid hard dependency at module import time
+    import librosa
+    import librosa.display
+
+    # plotdata is channels x samples; take first channel
+    y = plotdata[0].astype('float32')
+    # small guard: if all zeros, create a tiny non-empty array to avoid errors
+    if y.size == 0:
+      y = np.zeros(1, dtype='float32')
+
+    # compute mel spectrogram (use fewer mels for performance)
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=64, fmax=8000)
+    S_dB = librosa.power_to_db(S, ref=np.max)
+
+    # display with imshow for easy updates
+    img = ax.imshow(S_dB, aspect='auto', origin='lower', interpolation='nearest')
+    ax.set_ylabel('Mel bin')
+    ax.set_xlabel('Frame')
+    ax.set_title('Mel Spectrogram')
+    return img
+
   def update_line(self):
     for (line, data) in zip(self.lines, self.stream.ring_buffer):
       line.set_ydata(data[-len(line.get_ydata()):])
+    return self.lines
+
+  def update_mel(self):
+    # recompute mel from latest ring buffer and update image
+    import librosa
+
+    y = self.stream.ring_buffer[0].astype('float32')
+    # If buffer is silent or empty, skip update
+    if y.size == 0:
+      return
+
+    S = librosa.feature.melspectrogram(y=y, sr=self.stream.samplerate, n_mels=64, fmax=8000)
+    S_dB = librosa.power_to_db(S, ref=np.max)
+
+    # update the image data and rescale color limits
+    try:
+      self.mel_im.set_data(S_dB)
+      self.mel_im.set_clim(vmin=S_dB.min(), vmax=S_dB.max())
+    except Exception:
+      # If the image artist was not created for any reason, recreate it on the axes
+      ax = self.axes[1]
+      ax.clear()
+      self.mel_im = Plotting.plot_mel(ax, self.stream.ring_buffer, self.stream.samplerate)
+    return [self.mel_im]
 
   def update_plot(self, frames):
     print("update_plot", describe_np(self.stream.ring_buffer))
-    self.update_line()
-    return self.axes
+    artists = []
+    artists.extend(self.update_line())
+    artists.extend(self.update_mel())
+    # return artists for blitting: lines and mel image
+    return artists
 
 if __name__ == "__main__":
   device_info = sd.query_devices(None, 'input')
