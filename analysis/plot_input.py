@@ -10,10 +10,10 @@ import queue
 RATE = 44100
 CHANNELS = 1
 CHUNK = 4096
-BUFFER_MILLISECONDS = 1000
+BUFFER_MILLISECONDS = 10000
 
 class AudioStream:
-  def __init__(self, samplerate=RATE, channels=CHANNELS, buffer_milliseconds=BUFFER_MILLISECONDS, downsample=10, blocksize=CHUNK):
+  def __init__(self, samplerate=RATE, channels=CHANNELS, buffer_milliseconds=BUFFER_MILLISECONDS, downsample=1, blocksize=CHUNK):
     self.buffer_len = int(samplerate * buffer_milliseconds / (1000 * downsample))
     self._ring_buffer = np.zeros((channels, self.buffer_len), dtype='float32')
     self.samplerate = samplerate
@@ -39,9 +39,20 @@ class AudioStream:
         self._ring_buffer[:, -shift:] = data
 
   @property
+  def sr(self):
+    return self.samplerate / self.downsample
+
+  @property
   def ring_buffer(self):
     self.sync_ring_buffer()
     return self._ring_buffer
+
+  def get_buffer(self, duration_ms: int) -> np.ndarray:
+    """Get the most recent audio buffer of specified duration in milliseconds."""
+    self.sync_ring_buffer()
+    num_samples = int(self.samplerate * duration_ms / (1000 * self.downsample))
+    num_samples = min(num_samples, self._ring_buffer.shape[1])
+    return self._ring_buffer[:, -num_samples:]
 
   def __enter__(self):
     def audio_callback(indata: np.ndarray, frames_count, time_info, status):
@@ -78,21 +89,28 @@ plt.rcParams['font.sans-serif'] = [
 plt.rcParams['font.family'] = 'sans-serif'
 plt.rcParams['axes.unicode_minus'] = False
 
+# lazy import to avoid hard dependency at module import time
+import librosa
+import librosa.display
+
 class Plotting:
-  def __init__(self, stream: AudioStream):
+  def __init__(self, stream: AudioStream, duration_ms=5000, resample=882):
+    self.duration = duration_ms
+    self.resample = resample
+    self.stream = stream
+
     fig, axes = plt.subplots(2, 1)
     self.figure = fig
     self.axes = axes # type: Axes
-    self.lines = Plotting.plot_line(axes[0], stream.ring_buffer)
+    self.lines = Plotting.plot_line(axes[0], self.line_data, sr=resample)
     # Mel spectrogram image artist (initialize with current buffer)
-    self.mel_im = Plotting.plot_mel(axes[1], stream.ring_buffer, stream.samplerate)
+    self.mel_im = Plotting.plot_mel(axes[1], self.plotdata, sr=stream.sr)
     self.figure.tight_layout(pad=0)
-    self.stream = stream
 
   @staticmethod
-  def plot_line(ax: Axes, plotdata: np.ndarray):
+  def plot_line(ax: Axes, plotdata: np.ndarray, sr: int):
     lines = ax.plot(*list(plotdata))
-    ax.axis((0, plotdata.shape[1], -1, 1))
+    ax.axis((0, plotdata.shape[1], -0.3, 0.3))
     ax.set_yticks([0])
     ax.yaxis.grid(True)
     ax.tick_params(bottom=False, top=False, labelbottom=False,
@@ -105,9 +123,6 @@ class Plotting:
 
     Returns the AxesImage so it can be updated later via set_data.
     """
-    # lazy import to avoid hard dependency at module import time
-    import librosa
-    import librosa.display
 
     # plotdata is channels x samples; take first channel
     y = plotdata[0].astype('float32')
@@ -126,22 +141,32 @@ class Plotting:
     ax.set_title('Mel Spectrogram')
     return img
 
+  @property
+  def plotdata(self):
+    return self.stream.get_buffer(self.duration)
+
+  @property
+  def line_data(self):
+    buffer = self.plotdata
+    if self.resample:
+      return librosa.resample(buffer, orig_sr=self.stream.sr, target_sr=self.resample, axis=1)
+    return buffer
+
+  @property
+  def mel_data(self):
+    buffer = self.plotdata
+
+    S = librosa.feature.melspectrogram(y=buffer, sr=self.stream.sr)
+    S_dB = librosa.power_to_db(S, ref=np.max)
+    return S, S_dB
+
   def update_line(self):
-    for (line, data) in zip(self.lines, self.stream.ring_buffer):
+    for (line, data) in zip(self.lines, self.line_data):
       line.set_ydata(data[-len(line.get_ydata()):])
     return self.lines
 
   def update_mel(self):
-    # recompute mel from latest ring buffer and update image
-    import librosa
-
-    y = self.stream.ring_buffer[0].astype('float32')
-    # If buffer is silent or empty, skip update
-    if y.size == 0:
-      return
-
-    S = librosa.feature.melspectrogram(y=y, sr=self.stream.samplerate, n_mels=64, fmax=8000)
-    S_dB = librosa.power_to_db(S, ref=np.max)
+    S, S_dB = self.mel_data
 
     # update the image data and rescale color limits
     try:
@@ -149,9 +174,9 @@ class Plotting:
       self.mel_im.set_clim(vmin=S_dB.min(), vmax=S_dB.max())
     except Exception:
       # If the image artist was not created for any reason, recreate it on the axes
-      ax = self.axes[1]
+      ax = self.axes[1] # type: Axes
       ax.clear()
-      self.mel_im = Plotting.plot_mel(ax, self.stream.ring_buffer, self.stream.samplerate)
+      self.mel_im = Plotting.plot_mel(ax, self.plotdata, sr=self.stream.sr)
     return [self.mel_im]
 
   def update_plot(self, frames):
