@@ -19,7 +19,7 @@ const emit = defineEmits<{
 const player = ref<MediaPlayerElement | null>(null)
 const vocalAudio = ref<HTMLAudioElement | null>(null)
 const toggleButton = ref<MediaToggleButtonElement | null>(null)
-const playoriginal = ref<boolean>(true)
+const vocalsOn = ref<boolean>(true)
 
 // volume slider not yet implemented inside this component (parent handles volume UI)
 
@@ -44,23 +44,25 @@ function handleSeeked() {
 function handleLoadedMetadata() {
   if (!player.value) return
   // @ts-ignore custom element exposes duration
-  const d = (player.value as any).duration ?? 0
+  const d = player.value.duration ?? 0
   emit('loaded-metadata', d)
 }
 
 function handlePlay(v: boolean) {
-  if (v) {
-    vocalAudio.value?.play()
-  } else {
-    vocalAudio.value?.pause()
-  }
   emit('play-state', v)
 }
 
 function toggleOriginal() {
-  playoriginal.value = toggleButton.value?.pressed ?? !playoriginal.value
-  if (vocalAudio.value) {
-    vocalAudio.value.muted = playoriginal.value
+  vocalsOn.value = toggleButton.value?.pressed ?? !vocalsOn.value
+}
+
+function toPlay(el: HTMLMediaElement | MediaPlayerElement, play: boolean, time: number) {
+  if (play && el.paused) {
+    el.currentTime = time // sync time before play
+    el.play?.()
+  }
+  else if (!play && !el.paused) {
+    el.pause?.()
   }
 }
 
@@ -68,16 +70,26 @@ function toggleOriginal() {
 watch(() => props.isPlaying, (val) => {
   const el = player.value
   const a = vocalAudio.value
-  if (!el || !a) return
-  if (val && el.paused) {
-    el.currentTime = props.currentTime // sync time before play
-    a.currentTime = props.currentTime
-    el.play?.()
-    a.play?.()
+  if (el) {
+    toPlay(el, val, props.currentTime)
   }
-  else if (!val && !el.paused) {
-    el.pause?.()
-    a.pause?.()
+  if (a) {
+    // if (playoriginal.value) {
+    //   a.muted = true
+    // } else {
+    //   a.muted = false
+    // }
+    toPlay(a, val, props.currentTime)
+  }
+}, { immediate: true })
+
+watch(toggleButton, (btn) => {
+  if (!btn) return
+    if (btn.pressed != vocalsOn.value) {
+    console.log("click button")
+    // dispatch a pointerup event so the custom toggle button receives a pointerup
+    // see https://github.com/vidstack/player/blob/a8871648f2ae0022dc915bea6a4e72c4d49038ce/packages/vidstack/src/utils/dom.ts#L137
+    btn?.dispatchEvent(new PointerEvent('pointerup', { bubbles: false, composed: true }))
   }
 }, { immediate: true })
 
@@ -88,11 +100,19 @@ watch(() => props.volume, (v) => {
   if (a) a.volume = v
 }, { immediate: true })
 
+watch(() => vocalsOn.value, (on) => {
+  const a = vocalAudio.value
+  if (a) {
+    a.muted = !on
+    console.log("Vocal audio muted:", a.muted)
+  }
+}, { immediate: true })
+
 </script>
 
 <template>
   <div class="controller w-full select-none">
-    <audio ref="vocalAudio" controls :src="props.src2" volume="0.5" preload="metadata"></audio>
+    <audio ref="vocalAudio" :src="props.src2" volume="0.5" preload="metadata" v-if="props.src2"></audio>
     <media-player
       crossorigin
       playsinline
@@ -109,8 +129,8 @@ watch(() => props.volume, (v) => {
       class="block"
     >
       <!--@timeupdate and @progress would never emit -->
-      <media-provider class="hidden" :src="props.src" type="audio/mp4">
-        <source :src="props.src" type="audio/mp4" />
+      <media-provider class="hidden" :src="props.src" type="audio/mpeg">
+        <source :src="props.src" type="audio/mpeg" />
       </media-provider>
       <div class="flex items-center gap-4">
         <!-- Play / Pause -->
@@ -140,15 +160,18 @@ watch(() => props.volume, (v) => {
         </div>
 
         <!-- Volume (hover to show slider) -->
-        <media-mute-button class="vds-button group">
+        <media-mute-button class="vds-button group" v-if="props.src2">
           <!-- See https://vidstack.io/docs/wc/player/components/buttons/mute-button/?styling=tailwind-css -->
           <media-icon type="mute" class="mute-icon vds-icon hidden group-data-[state='muted']:block"></media-icon>
           <media-icon type="volume-low" class="volume-low-icon vds-icon hidden group-data-[state='low']:block"></media-icon>
           <media-icon type="volume-high" class="volume-high-icon vds-icon hidden group-data-[state='high']:block"></media-icon>
         </media-mute-button>
-        <media-toggle-button class="vds-button group" :data-defaultPressed="playoriginal" ref="toggleButton" @click=toggleOriginal>
-          <media-icon type="no-eye" class="vds-icon hidden group-data-[pressed]:block"></media-icon>
-          <media-icon type="user" class="vds-icon block group-data-[pressed]:hidden"></media-icon>
+        <media-toggle-button class="vds-button group" :default-pressed="vocalsOn" ref="toggleButton" @click=toggleOriginal>
+          <!-- See https://vidstack.io/docs/wc/player/components/buttons/toggle-button/?styling=default-theme -->
+          <!-- default-pressed or `:default-pressed="vocalsOn ? '' as any : undefined"` doesn't works -->
+          <!-- see also `watch(toggleButton, (btn) => ...)` -->
+          <media-icon type="no-eye" slot="vocals-mute" class="vds-icon block group-data-[pressed]:hidden"></media-icon>
+          <media-icon type="user" slot="vocals-unmute" class="vds-icon hidden group-data-[pressed]:block"></media-icon>
         </media-toggle-button>
       </div>
     </media-player>

@@ -2,7 +2,7 @@
 import { defineProps, defineEmits } from 'vue'
 import { PlayListItem } from '../utils/state';
 // accept an optional `current` prop (url of the currently playing item)
-const props = defineProps<{ items: PlayListItem[], current_url: string }>()
+const props = defineProps<{ items: PlayListItem[], current_url?: string }>()
 const emit = defineEmits<{
   (e: 'switch_song', v: string): void
 }>()

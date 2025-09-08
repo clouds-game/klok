@@ -1,8 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, nextTick } from 'vue'
-import { uint8ArrayToDataUrl } from './time'
-import { State } from 'vidstack/types/vidstack-BNOTL9fc.js'
+import { loadAudioContent } from './api'
 
 
 // MIDI note representation (matches Rust `Note` returned from `load_midi`)
@@ -60,13 +59,8 @@ export const useAppState = defineStore('app', () => {
 
   const reset = () => {
     _title.value = null
-    const oldStreamUrl = streamUrl.value
-    nextTick(() => {
-      if (oldStreamUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(oldStreamUrl)
-      }
-    })
-    streamUrl.value = null
+    setStreamUrl(null)
+    setVocalUrl(null)
     duration.value = 1
     currentTime.value = 0
     metadata.value = null
@@ -99,19 +93,37 @@ export const useAppState = defineStore('app', () => {
     }
   }
 
+  const setVocalUrl = (url: string | null) => {
+    const oldVocalUrl = vocalUrl.value
+    nextTick(() => {
+      if (oldVocalUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(oldVocalUrl)
+      }
+    })
+    vocalUrl.value = url
+  }
+
+  const setStreamUrl = (url: string | null) => {
+    const oldStreamUrl = streamUrl.value
+    nextTick(() => {
+      if (oldStreamUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(oldStreamUrl)
+      }
+    })
+    streamUrl.value = url
+  }
+
   const loadAudio = async (newUrl: string) => {
     // fetch audio content from rust backend as data URL for bundled resource
     // store it in `streamUrl` so we don't overwrite any user-selected `fileUrl`
     try {
       const name = newUrl.split(".")[0]
 
-      const vocalData_ = await invoke('load_audio', { path: `${name}_vocals.mp3` }) as Array<number>
-      const accompanyData_ = await invoke('load_audio', { path: `${name}_non_vocals.mp3` }) as Array<number>
-      const vocalData = Uint8Array.from(vocalData_)
-      const accompanyData = Uint8Array.from(accompanyData_)
+      const vocalUrl = await loadAudioContent(`${name}_vocals.mp3`)
+      const backgroundUrl = await loadAudioContent(`${name}_non_vocals.mp3`)
 
-      streamUrl.value = uint8ArrayToDataUrl(accompanyData)
-      vocalUrl.value = uint8ArrayToDataUrl(vocalData)
+      setVocalUrl(vocalUrl)
+      setStreamUrl(backgroundUrl)
     } catch (e) {
       // fallback: keep using builtin file name
       console.warn('load_audio failed', e)
