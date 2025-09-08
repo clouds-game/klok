@@ -92,7 +92,7 @@ watch(() => props.volume, (v) => {
 
 <template>
   <div class="controller w-full select-none">
-    <audio ref="vocalAudio" controls :src="props.src2" volume="0.5" preload="metadata"></audio>
+    <audio ref="vocalAudio" :src="props.src2" volume="0.5" preload="metadata"></audio>
     <media-player
       crossorigin
       playsinline
@@ -109,8 +109,8 @@ watch(() => props.volume, (v) => {
       class="block"
     >
       <!--@timeupdate and @progress would never emit -->
-      <media-provider class="hidden" :src="props.src" type="audio/mp4">
-        <source :src="props.src" type="audio/mp4" />
+      <media-provider class="hidden" :src="props.src" type="audio/mpeg">
+        <source :src="props.src" type="audio/mpeg" />
       </media-provider>
       <div class="flex items-center gap-4">
         <!-- Play / Pause -->
