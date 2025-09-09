@@ -29,6 +29,12 @@ onMounted(async () => {
   console.log('Initial playlist finish')
   state.fileUrl = state.playList[0]?.url
   state.lyricsGlobalDelta = -0.8
+  // start realtime pitch polling (local capture_voice.py exposes /pitch)
+  state.startPitchPolling()
+})
+
+onUnmounted(() => {
+  state.stopPitchPolling()
 })
 
 function handleShortcuts(e: KeyboardEvent): boolean {

@@ -81,11 +81,12 @@ def audio_processing_thread():
         if pitch:
           midi = librosa.hz_to_midi(pitch)
           note = librosa.hz_to_note(pitch)
-          print(f"当前音高: {midi:.2f} MIDI, {note}")
+          # print(f"当前音高: {midi:.2f} MIDI, {note}")
           pitch_data = {
               "midi": midi,
               "note": note,
               "pitch": pitch,
+              "time": time.time()
           }
           global latest_pitch_data
           with pitch_lock:

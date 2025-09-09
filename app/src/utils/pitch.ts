@@ -1,3 +1,5 @@
+import { pitchData } from "./api"
+
 export type MidiNote = {
   note: number
   start: number
@@ -15,6 +17,10 @@ type DrawOptions = {
   min_note?: number
   max_note?: number
   alpha_threshold?: number
+  // current detected pitch in Hz (optional)
+  current_pitch_data?:  pitchData| null
+  // history of detected pitches as array of {t: number, hz: number}
+  pitch_history?: pitchData[] | null
 }
 
 function isValidNumber(v: any): v is number {

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, nextTick } from 'vue'
-import { loadAudioContent } from './api'
+import { fetchCurrentPitch, loadAudioContent, pitchData} from './api'
 
 
 // MIDI note representation (matches Rust `Note` returned from `load_midi`)
@@ -32,6 +32,12 @@ export const useAppState = defineStore('app', () => {
   const volume = ref(1)
   const metadata = ref<Metadata | null>(null)
   const notes = ref<MidiNote[] | null>(null)
+  // realtime pitch detection state (Hz)
+  const currentPitchData = ref<pitchData | null>(null)
+  // history of detected pitches: { time: number, midi: number }
+  const pitchHistory = ref<pitchData[]>([])
+  // polling handle
+  let pitchPollTimer: number | null = null
 
   // Keep original lyrics exactly as provided by metadata
   const originalLyrics = computed(() => Array.from(metadata.value?.lyrics || []))
@@ -64,6 +70,13 @@ export const useAppState = defineStore('app', () => {
     duration.value = 1
     currentTime.value = 0
     metadata.value = null
+    // stop pitch polling and clear pitch state
+    if (pitchPollTimer) {
+      clearInterval(pitchPollTimer)
+      pitchPollTimer = null
+    }
+    currentPitchData.value = null
+    pitchHistory.value = []
   }
 
   const loadPlaylist = async () => {
@@ -210,6 +223,28 @@ export const useAppState = defineStore('app', () => {
     fileUrl.value = url
   }
 
+  // Start polling pitch endpoint every 500ms. Will replace existing timer.
+  const startPitchPolling = (endpoint?: string) => {
+    if (pitchPollTimer) clearInterval(pitchPollTimer)
+    pitchPollTimer = window.setInterval(async () => {
+      const data = await fetchCurrentPitch()
+      if (data) {
+        currentPitchData.value = data
+        pitchHistory.value = [...pitchHistory.value, data].slice(-500)
+      } else {
+        console.warn('fetchCurrentPitch returned no data')
+      }
+
+    }, 500)
+  }
+
+  const stopPitchPolling = () => {
+    if (pitchPollTimer) {
+      clearInterval(pitchPollTimer)
+      pitchPollTimer = null
+    }
+  }
+
   return {
     playList,
     title,
@@ -243,5 +278,10 @@ export const useAppState = defineStore('app', () => {
     setLyricDelta,
     clearLyricTimeDelta,
     switchToSong,
+    // realtime pitch controls
+    currentPitchData,
+    pitchHistory,
+    startPitchPolling,
+    stopPitchPolling,
   }
 })
