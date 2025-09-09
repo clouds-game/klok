@@ -107,7 +107,10 @@ app = Flask(__name__)
 def get_pitch():
   with pitch_lock:
     pitch_data = latest_pitch_data
-  return jsonify({'status': 'success', 'data': pitch_data if pitch_data else {}})
+  response = jsonify({'status': 'success', 'data': pitch_data if pitch_data else {}})
+  # 允许所有域名访问
+  response.headers['Access-Control-Allow-Origin'] = '*'
+  return response
 
 def run_http_server(port=8000, host='localhost'):
   """启动Flask HTTP服务器"""
@@ -136,6 +139,7 @@ def main():
     print("\n收到停止信号")
   finally:
     # 停止音频处理线程
+    print("正在停止音频处理线程...")
     global is_running
     is_running = False
     audio_thread.join()

@@ -110,6 +110,20 @@ export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | 
     ctx.strokeRect(x + 0.5, y - h / 2 + 0.5, w - 1, h - 1)
   }
 
+  const visiblePitchHistory = (opts.pitch_history || []).filter(p => p.time >= viewStart && p.time <= viewEnd)
+  for (let i = 0; i < visiblePitchHistory.length - 1; i++) {
+    const p = visiblePitchHistory[i]
+    const nextP = visiblePitchHistory[i + 1]
+    const x = timeToX(p.time)
+    const w = Math.max(1, timeToX(nextP.time) - x)
+    const y = noteToY(p.midi)
+    const h = Math.max(4, (cssHeight - 20) / noteRange)
+    ctx.fillStyle = `rgba(190, 163, 24, 0.65)`
+    ctx.fillRect(x, y - h / 2, w, h)
+    ctx.strokeStyle = `rgba(0,0,0,0.25)`
+    ctx.strokeRect(x + 0.5, y - h / 2 + 0.5, w - 1, h - 1)
+  }
+
   // time ruler
   ctx.fillStyle = 'rgba(255,255,255,0.6)'
   ctx.font = '11px sans-serif'

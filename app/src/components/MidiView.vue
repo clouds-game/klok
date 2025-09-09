@@ -28,7 +28,6 @@ const redraw = () => {
     right_time: props.right_time,
     min_note: 50,
     max_note: 80,
-    current_pitch_data: state.currentPitchData,
     pitch_history: state.pitchHistory,
   })
 }

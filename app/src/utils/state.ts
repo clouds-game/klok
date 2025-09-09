@@ -32,9 +32,7 @@ export const useAppState = defineStore('app', () => {
   const volume = ref(1)
   const metadata = ref<Metadata | null>(null)
   const notes = ref<MidiNote[] | null>(null)
-  // realtime pitch detection state (Hz)
-  const currentPitchData = ref<pitchData | null>(null)
-  // history of detected pitches: { time: number, midi: number }
+  // history of detected pitch data
   const pitchHistory = ref<pitchData[]>([])
   // polling handle
   let pitchPollTimer: number | null = null
@@ -75,7 +73,6 @@ export const useAppState = defineStore('app', () => {
       clearInterval(pitchPollTimer)
       pitchPollTimer = null
     }
-    currentPitchData.value = null
     pitchHistory.value = []
   }
 
@@ -184,7 +181,13 @@ export const useAppState = defineStore('app', () => {
   })
 
   const togglePlay = (b?: boolean) => { isPlaying.value = b !== undefined ? b : !isPlaying.value }
-  const seekTo = (v: number) => { currentTime.value = v }
+  const seekTo = (v: number) => {
+    currentTime.value = v
+    // remove pitch history if seeking backwards
+    if (pitchHistory.value.length > 0 && v < pitchHistory.value[pitchHistory.value.length - 1].time) {
+      pitchHistory.value = pitchHistory.value.filter(p => p.time <= v)
+    }
+  }
   const setVolume = (v: number) => { volume.value = v }
   const setDuration = (v: number) => { duration.value = v }
 
@@ -223,19 +226,20 @@ export const useAppState = defineStore('app', () => {
     fileUrl.value = url
   }
 
-  // Start polling pitch endpoint every 500ms. Will replace existing timer.
-  const startPitchPolling = (endpoint?: string) => {
+  // Start polling pitch endpoint every 100ms. Will replace existing timer.
+  const startPitchPolling = () => {
     if (pitchPollTimer) clearInterval(pitchPollTimer)
-    pitchPollTimer = window.setInterval(async () => {
+    pitchPollTimer = setInterval(async () => {
+      if (!isPlaying.value) return
       const data = await fetchCurrentPitch()
       if (data) {
-        currentPitchData.value = data
-        pitchHistory.value = [...pitchHistory.value, data].slice(-500)
+        data.time = currentTime.value
+        // pitchHistory.value = [...pitchHistory.value, data].slice(-500)
+        pitchHistory.value.push(data)
       } else {
         console.warn('fetchCurrentPitch returned no data')
       }
-
-    }, 500)
+    }, 200)
   }
 
   const stopPitchPolling = () => {
@@ -279,7 +283,6 @@ export const useAppState = defineStore('app', () => {
     clearLyricTimeDelta,
     switchToSong,
     // realtime pitch controls
-    currentPitchData,
     pitchHistory,
     startPitchPolling,
     stopPitchPolling,
