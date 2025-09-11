@@ -1,14 +1,24 @@
 <script setup lang="ts">
-import { onMounted, nextTick, onUnmounted } from 'vue'
+import { onMounted, nextTick, onUnmounted, watch, ref } from 'vue'
 import Controller from './components/Controller.vue'
 import Lyrics from './components/Lyrics.vue'
 import MidiView from './components/MidiView.vue'
 import Playlist from './components/Playlist.vue'
 import { useAppState } from './utils/state'
+import { scoreNotes } from './utils/pitch'
 
 const state = useAppState()
-
 // store is used directly (Pinia store properties)
+
+
+// final score (percentage 0-100) shown after playback ends
+const finalScore = ref<number | null>(null)
+
+function handleEnded() {
+  const res = scoreNotes(state.notes, state.pitchHistory)
+  finalScore.value = Math.round((res.overall || 0) * 100)
+}
+
 
 function loadFile(e: Event) {
   const inp = e.target as HTMLInputElement
@@ -29,7 +39,6 @@ onMounted(async () => {
   console.log('Initial playlist finish')
   state.fileUrl = state.playList[0]?.url
   state.lyricsGlobalDelta = -0.8
-  // start realtime pitch polling (local capture_voice.py exposes /pitch)
   state.startPitchPolling()
 })
 
@@ -69,6 +78,12 @@ function onKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
+// clear final score when a new file is selected or when playback starts again
+watch(() => state.fileUrl, () => { finalScore.value = null })
+watch(() => state.isPlaying, (v) => {
+  if (v) finalScore.value = null
+})
+
 // ended event handled via play-state false when media ends (vidstack emits pause)
 
 </script>
@@ -82,10 +97,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         @time-update="state.seekTo"
         @loaded-metadata="state.setDuration"
         @play-state="state.togglePlay"
+        @ended="handleEnded"
       />
       <label class="border border-muted px-3 py-2 rounded cursor-pointer inline-flex items-center">
         Load audio
         <input class="hidden" type="file" accept="audio/*" @change="loadFile" />
+      </label>
+
+      <label v-if="finalScore !== null" class="ml-3 px-3 py-2 rounded bg-green-600 text-white inline-flex items-center">
+        Final score: {{ finalScore }}%
       </label>
 
   <!-- native <audio> removed; Controller's <media-player> handles playback -->

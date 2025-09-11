@@ -13,6 +13,7 @@ const emit = defineEmits<{
   (e: 'time-update', t: number): void
   (e: 'loaded-metadata', d: number): void
   (e: 'play-state', playing: boolean): void
+  (e: 'ended'): void
 }>()
 
 // underlying custom element <media-player>
@@ -50,6 +51,10 @@ function handleLoadedMetadata() {
 
 function handlePlay(v: boolean) {
   emit('play-state', v)
+}
+
+function handleEnded() {
+  emit('ended')
 }
 
 function toggleOriginal() {
@@ -124,6 +129,7 @@ watch(() => vocalsOn.value, (on) => {
       @loadedmetadata="handleLoadedMetadata"
       @play="handlePlay(true)"
       @pause="handlePlay(false)"
+      @ended="handleEnded"
       @seeking="handleSeeked"
       @seeked="handleSeeked"
       class="block"

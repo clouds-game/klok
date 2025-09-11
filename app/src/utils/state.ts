@@ -68,11 +68,6 @@ export const useAppState = defineStore('app', () => {
     duration.value = 1
     currentTime.value = 0
     metadata.value = null
-    // stop pitch polling and clear pitch state
-    if (pitchPollTimer) {
-      clearInterval(pitchPollTimer)
-      pitchPollTimer = null
-    }
     pitchHistory.value = []
   }
 
@@ -229,17 +224,17 @@ export const useAppState = defineStore('app', () => {
   // Start polling pitch endpoint every 100ms. Will replace existing timer.
   const startPitchPolling = () => {
     if (pitchPollTimer) clearInterval(pitchPollTimer)
-    pitchPollTimer = setInterval(async () => {
+    const poll = async () => {
       if (!isPlaying.value) return
       const data = await fetchCurrentPitch()
       if (data) {
         data.time = currentTime.value
-        // pitchHistory.value = [...pitchHistory.value, data].slice(-500)
         pitchHistory.value.push(data)
       } else {
         console.warn('fetchCurrentPitch returned no data')
       }
-    }, 200)
+    }
+    pitchPollTimer = setInterval(poll, 200)
   }
 
   const stopPitchPolling = () => {
