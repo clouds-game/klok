@@ -27,3 +27,27 @@ export async function loadAudioContent(url: string) {
   const blob = new Blob([data], { type: mimeType })
   return URL.createObjectURL(blob)
 }
+
+export type pitchData = {
+  pitch: number
+  midi: number
+  note: string
+  time: number
+}
+
+
+export async function fetchCurrentPitch(): Promise<pitchData | undefined> {
+  try {
+    const resp = await fetch("http://localhost:8000/pitch")
+    if (!resp.ok) {
+      console.warn('fetchCurrentPitch response not ok', resp.status, resp.statusText)
+      return
+    }
+    const body = await resp.json()
+    // expected shape: { status: 'success', data: { pitch: 440.0, midi: 69, note: 'A4', time: 12.34 } }
+    const data = body?.data as pitchData | undefined
+    return data
+  } catch (e) {
+    console.warn('fetchCurrentPitch failed', e)
+  }
+}

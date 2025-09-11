@@ -1,3 +1,5 @@
+import { pitchData } from "./api"
+
 export type MidiNote = {
   note: number
   start: number
@@ -15,6 +17,10 @@ type DrawOptions = {
   min_note?: number
   max_note?: number
   alpha_threshold?: number
+  // current detected pitch in Hz (optional)
+  current_pitch_data?:  pitchData| null
+  // history of detected pitches as array of {t: number, hz: number}
+  pitch_history?: pitchData[] | null
 }
 
 function isValidNumber(v: any): v is number {
@@ -104,6 +110,20 @@ export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | 
     ctx.strokeRect(x + 0.5, y - h / 2 + 0.5, w - 1, h - 1)
   }
 
+  const visiblePitchHistory = (opts.pitch_history || []).filter(p => p.time >= viewStart && p.time <= viewEnd)
+  for (let i = 0; i < visiblePitchHistory.length - 1; i++) {
+    const p = visiblePitchHistory[i]
+    const nextP = visiblePitchHistory[i + 1]
+    const x = timeToX(p.time)
+    const w = Math.max(1, timeToX(nextP.time) - x)
+    const y = noteToY(p.midi)
+    const h = Math.max(4, (cssHeight - 20) / noteRange)
+    ctx.fillStyle = `rgba(190, 163, 24, 0.65)`
+    ctx.fillRect(x, y - h / 2, w, h)
+    ctx.strokeStyle = `rgba(0,0,0,0.25)`
+    ctx.strokeRect(x + 0.5, y - h / 2 + 0.5, w - 1, h - 1)
+  }
+
   // time ruler
   ctx.fillStyle = 'rgba(255,255,255,0.6)'
   ctx.font = '11px sans-serif'
@@ -143,5 +163,107 @@ export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | 
       const tx = Math.min(Math.max(6, x + 8), cssWidth - 40)
       ctx.fillText(label, tx, 14)
     }
+  }
+}
+
+
+export type NoteScore = {
+  index: number
+  note: number
+  start: number
+  duration: number
+  // normalized score in range [0,1] (1 = perfect)
+  score: number
+  // mean absolute error in semitones between detected midi and target
+  meanError: number | null
+  // number of pitch samples used for this note
+  samples: number
+}
+
+export type ScoreResult = {
+  perNote: NoteScore[]
+  overall: number
+  // weights and options used for scoring
+  options: {
+    tolerance: number
+    margin: number
+    minSamples: number
+    weightByDuration: boolean
+  }
+}
+
+export type ScoreOptions = {
+  // tolerance (semitones) where error==tolerance maps to zero score for that sample
+  tolerance?: number
+  // margin (seconds) added before/after a note when collecting pitch samples
+  margin?: number
+  // minimal samples to consider a note reliably detected (affects nothing except optional heuristics)
+  minSamples?: number
+  // whether to weight per-note scores by their duration when computing overall score
+  weightByDuration?: boolean
+}
+
+/**
+ * Score an array of MidiNote against a pitch history.
+ * Returns per-note normalized scores [0..1] and an overall weighted average.
+ *
+ * Strategy (simple, robust):
+ * - For each note, collect pitchHistory samples whose time falls in [start-margin, start+duration+margin]
+ * - For each sample compute semitone error = abs(sample.midi - note)
+ * - Convert sample error to sample score = clamp(1 - error / tolerance, 0, 1)
+ * - Note score = average(sample scores). If no samples, score = 0.
+ */
+export function scoreNotes(notes: MidiNote[] | null, pitch_history: pitchData[] | null, opts: ScoreOptions = {}): ScoreResult {
+  const tolerance = opts.tolerance ?? 2 // semitones
+  const margin = opts.margin ?? 0.06 // seconds
+  const minSamples = opts.minSamples ?? 1
+  const weightByDuration = opts.weightByDuration ?? true
+
+  const nh = notes || []
+  const ph = pitch_history || []
+
+  const perNote: NoteScore[] = []
+
+  for (let i = 0; i < nh.length; i++) {
+    const n = nh[i]
+    const windowStart = Math.max(0, n.start - margin)
+    const windowEnd = n.start + n.duration + margin
+
+    // filter pitch history samples to those within the note time window and with valid midi
+    const samples = ph.filter(p => p.time >= windowStart && p.time <= windowEnd && typeof p.midi === 'number' && !Number.isNaN(p.midi))
+
+    if (samples.length === 0) {
+      perNote.push({ index: i, note: n.note, start: n.start, duration: n.duration, score: 0, meanError: null, samples: 0 })
+      continue
+    }
+
+    const errors = samples.map(s => Math.abs(s.midi - n.note))
+    const meanError = errors.reduce((a, b) => a + b, 0) / errors.length
+
+    const sampleScores = errors.map(e => Math.max(0, 1 - e / tolerance))
+    const noteScoreRaw = sampleScores.reduce((a, b) => a + b, 0) / sampleScores.length
+
+    // If there are very few samples, optionally reduce confidence by scaling toward 0.
+    // We'll linearly scale score by samples/minSamples capped at 1.
+    const confidenceScale = Math.min(1, samples.length / Math.max(1, minSamples))
+    const noteScore = noteScoreRaw * confidenceScale
+
+    perNote.push({ index: i, note: n.note, start: n.start, duration: n.duration, score: Math.max(0, Math.min(1, noteScore)), meanError, samples: samples.length })
+  }
+
+  // compute overall score
+  let totalWeight = 0
+  let weightedSum = 0
+  for (const ns of perNote) {
+    const w = weightByDuration ? ns.duration : 1
+    totalWeight += w
+    weightedSum += ns.score * w
+  }
+  const overall = totalWeight > 0 ? weightedSum / totalWeight : 0
+
+  return {
+    perNote,
+    overall,
+    options: { tolerance, margin, minSamples, weightByDuration }
   }
 }

@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useAppState } from '../utils/state'
 import { drawNotes } from '../utils/pitch'
 
+// todo? same as MidiNote in pitch.ts
 type Note = {
   note: number
   start: number
@@ -28,6 +29,7 @@ const redraw = () => {
     right_time: props.right_time,
     min_note: 50,
     max_note: 80,
+    pitch_history: state.pitchHistory,
   })
 }
 const resizeObserver = new ResizeObserver(redraw)
