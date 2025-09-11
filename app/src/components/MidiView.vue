@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useAppState } from '../utils/state'
 import { drawNotes } from '../utils/pitch'
 
+// todo? same as MidiNote in pitch.ts
 type Note = {
   note: number
   start: number

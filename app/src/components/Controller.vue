@@ -160,13 +160,13 @@ watch(() => vocalsOn.value, (on) => {
         </div>
 
         <!-- Volume (hover to show slider) -->
-        <media-mute-button class="vds-button group" v-if="props.src2">
+        <media-mute-button class="vds-button group">
           <!-- See https://vidstack.io/docs/wc/player/components/buttons/mute-button/?styling=tailwind-css -->
           <media-icon type="mute" class="mute-icon vds-icon hidden group-data-[state='muted']:block"></media-icon>
           <media-icon type="volume-low" class="volume-low-icon vds-icon hidden group-data-[state='low']:block"></media-icon>
           <media-icon type="volume-high" class="volume-high-icon vds-icon hidden group-data-[state='high']:block"></media-icon>
         </media-mute-button>
-        <media-toggle-button class="vds-button group" :default-pressed="vocalsOn" ref="toggleButton" @click=toggleOriginal>
+        <media-toggle-button class="vds-button group" v-if="props.src2" :default-pressed="vocalsOn" ref="toggleButton" @click=toggleOriginal>
           <!-- See https://vidstack.io/docs/wc/player/components/buttons/toggle-button/?styling=default-theme -->
           <!-- default-pressed or `:default-pressed="vocalsOn ? '' as any : undefined"` doesn't works -->
           <!-- see also `watch(toggleButton, (btn) => ...)` -->
