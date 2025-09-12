@@ -1,8 +1,72 @@
-import { DrawOptions, MidiNote, NoteScore, pitchData, ScoreOptions, ScoreResult } from "./types"
+import { DrawOptions, MidiNote, NoteScore, pitchData, ScoreOptions, ScoreResult, SegNote } from "./types"
 
 
 function isValidNumber(v: any): v is number {
   return typeof v === 'number' && !Number.isNaN(v) && isFinite(v)
+}
+
+// 将visibleNotes按照是否重叠分割成多个多个groups
+function GroupNotes(visibleNotes: MidiNote[]): MidiNote[][] {
+  visibleNotes.sort((a, b) => a.start - b.start)
+  const groups: MidiNote[][] = []
+  let start: number | null = null
+  let end: number | null = null
+  let group : MidiNote[] = []
+  for (const n of visibleNotes) {
+    if (start === null || end === null) {
+      start = n.start
+      end = n.start + n.duration
+      group.push(n)
+    } else {
+      if (n.start <= end) {
+        // 重叠，更新end
+        end = Math.max(end, n.start + n.duration)
+        group.push(n)
+      } else {
+        // 不重叠，保存当前组，开始新组
+        groups.push(group)
+        group = [n]
+        start = n.start
+        end = n.start + n.duration
+      }
+    }
+  }
+  return groups
+}
+
+// 将每个group生成不重叠的note片段
+function _generateNoteSegments(group: MidiNote[]): SegNote[] {
+  if (group.length === 0) return []
+  let res: SegNote[] = []
+  let times: number[] = group.map(n => [n.start, n.start + n.duration]).flat()
+  times = Array.from(new Set(times)) // 去重
+  times.sort((a, b) => a - b)
+  for (let i = 0; i < times.length - 1; i++) {
+    const segStart = times[i]
+    const segEnd = times[i + 1]
+    const segNote: SegNote = { start: segStart, end: segEnd }
+    res.push(segNote)
+  }
+  return res
+}
+
+// 生成note片段
+function generateNoteSegments(groups: MidiNote[][]): SegNote[] {
+  const res: SegNote[] = []
+  for (const group of groups) {
+    const segs = _generateNoteSegments(group)
+    res.push(...segs)
+  }
+  return res
+}
+
+// 将实际采集到的pitch数据填充到SegNote中
+function fillPitchDataToSegNotes(segNotes: SegNote[], pitchHistory: pitchData[]): void {
+  if (segNotes.length === 0 || pitchHistory.length === 0) return
+  for (const seg of segNotes) {
+    const pitchs = pitchHistory.filter(p => p.time >= seg.start && p.time < seg.end)
+    seg.note = pitchs.length > 0 ? Math.round(pitchs.reduce((a, b) => a + b.midi, 0) / pitchs.length) : undefined
+  }
 }
 
 export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | null, opts: DrawOptions = {}) {
@@ -88,18 +152,24 @@ export function drawNotes(canvas: HTMLCanvasElement | null, notes: MidiNote[] | 
     ctx.strokeRect(x + 0.5, y - h / 2 + 0.5, w - 1, h - 1)
   }
 
+  const groups = GroupNotes(visibleNotes)
+  const segNotes: SegNote[] = generateNoteSegments(groups)
+
   const visiblePitchHistory = (opts.pitch_history || []).filter(p => p.time >= viewStart && p.time <= viewEnd)
-  for (let i = 0; i < visiblePitchHistory.length - 1; i++) {
-    const p = visiblePitchHistory[i]
-    const nextP = visiblePitchHistory[i + 1]
-    const x = timeToX(p.time)
-    const w = Math.max(1, timeToX(nextP.time) - x)
-    const y = noteToY(p.midi)
-    const h = Math.max(4, (cssHeight - 20) / noteRange)
-    ctx.fillStyle = `rgba(190, 163, 24, 0.65)`
-    ctx.fillRect(x, y - h / 2, w, h)
-    ctx.strokeStyle = `rgba(0,0,0,0.25)`
-    ctx.strokeRect(x + 0.5, y - h / 2 + 0.5, w - 1, h - 1)
+  fillPitchDataToSegNotes(segNotes, visiblePitchHistory)
+
+  for (const seg of segNotes) {
+    if (seg.note !== undefined) {
+      const x = timeToX(seg.start)
+      const w = Math.max(1, timeToX(seg.end) - x)
+      const y = noteToY(seg.note)
+      const h = Math.max(4, (cssHeight - 20) / noteRange)
+
+      ctx.fillStyle = `rgba(190, 163, 24, 0.65)`
+      ctx.fillRect(x, y - h / 2, w, h)
+      ctx.strokeStyle = `rgba(0,0,0,0.25)`
+      ctx.strokeRect(x + 0.5, y - h / 2 + 0.5, w - 1, h - 1)
+    }
   }
 
   // time ruler

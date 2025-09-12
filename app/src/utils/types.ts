@@ -7,6 +7,12 @@ export type MidiNote = {
   confidence?: number | null
 }
 
+export type SegNote = {
+  start: number
+  end: number
+  note?: number
+}
+
 
 export type PlayListItem = {
   title: string
