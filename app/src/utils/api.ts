@@ -30,8 +30,17 @@ export async function loadAudioContent(url: string) {
 }
 
 
-export async function fetchCurrentPitch(): Promise<pitchData | undefined> {
+export async function fetchCurrentPitch(mock:boolean=false): Promise<pitchData | undefined> {
   try {
+    if (mock)  {
+      const data: pitchData = {
+        pitch: 0,
+        midi: Math.random()*(80 - 50) + 50,
+        note: "note",
+        time: 0,
+      }
+      return data
+    }
     const resp = await fetch("http://localhost:8000/pitch")
     if (!resp.ok) {
       console.warn('fetchCurrentPitch response not ok', resp.status, resp.statusText)

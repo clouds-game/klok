@@ -211,7 +211,7 @@ export const useAppState = defineStore('app', () => {
     if (pitchPollTimer) clearInterval(pitchPollTimer)
     const poll = async () => {
       if (!isPlaying.value) return
-      const data = await fetchCurrentPitch()
+      const data = await fetchCurrentPitch(true)
       if (data) {
         data.time = currentTime.value
         pitchHistory.value.push(data)
