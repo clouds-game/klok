@@ -2,18 +2,10 @@
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useAppState } from '../utils/state'
 import { drawNotes } from '../utils/pitch'
+import { MidiNote } from '../utils/types';
 
-// todo? same as MidiNote in pitch.ts
-type Note = {
-  note: number
-  start: number
-  duration: number
-  velocity: number
-  channel: number
-  confidence?: number | null
-}
 
-const props = defineProps<{ notes: Note[]; left_time?: number; right_time?: number }>()
+const props = defineProps<{ notes: MidiNote[]; left_time?: number; right_time?: number }>()
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const state = useAppState()

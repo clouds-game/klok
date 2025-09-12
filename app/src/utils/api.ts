@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core"
+import { pitchData } from "./types"
 
 export function getAudioMimeType(url: string): string {
   const ext = url.split('.').pop()?.toLowerCase()
@@ -26,13 +27,6 @@ export async function loadAudioContent(url: string) {
   const mimeType = getAudioMimeType(url)
   const blob = new Blob([data], { type: mimeType })
   return URL.createObjectURL(blob)
-}
-
-export type pitchData = {
-  pitch: number
-  midi: number
-  note: string
-  time: number
 }
 
 

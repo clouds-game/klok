@@ -1,24 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { ref, computed, watch, nextTick } from 'vue'
-import { fetchCurrentPitch, loadAudioContent, pitchData} from './api'
+import { fetchCurrentPitch, loadAudioContent } from './api'
+import { MidiNote, pitchData, PlayListItem } from './types'
 
-
-// MIDI note representation (matches Rust `Note` returned from `load_midi`)
-type MidiNote = {
-  note: number
-  start: number
-  duration: number
-  velocity: number
-  channel: number
-  confidence?: number | null
-}
-
-export type PlayListItem = {
-  title: string
-  artist?: string
-  url: string
-}
 
 export const useAppState = defineStore('app', () => {
   const playList = ref<PlayListItem[]>([])
