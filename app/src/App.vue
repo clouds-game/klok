@@ -13,6 +13,8 @@ const state = useAppState()
 
 // final score (percentage 0-100) shown after playback ends
 const finalScore = ref<number | null>(null)
+// last lyric score (percentage 0-100) shown after statement ends
+const lyricScore = ref<number | null>(null)
 
 function handleEnded() {
   const res = scoreNotes(state.notes, state.pitchHistory)
@@ -83,6 +85,14 @@ watch(() => state.fileUrl, () => { finalScore.value = null })
 watch(() => state.isPlaying, (v) => {
   if (v) finalScore.value = null
 })
+watch(() => state.activeIndex, () => {
+  console.log('Active lyric index changed, reset lyric score')
+  const left = state.lyrics[state.activeIndex - 1]?.time || 0
+  const right = state.lyrics[state.activeIndex]?.time || 0
+  const lyricNotes = state.notes?.filter(n => n.start >= left && n.start + n.duration < right) || []
+  const res = scoreNotes(lyricNotes, state.pitchHistory)
+  lyricScore.value = Math.round((res.overall || 0) * 100)
+})
 
 // ended event handled via play-state false when media ends (vidstack emits pause)
 
@@ -102,6 +112,10 @@ watch(() => state.isPlaying, (v) => {
       <label class="border border-muted px-3 py-2 rounded cursor-pointer inline-flex items-center">
         Load audio
         <input class="hidden" type="file" accept="audio/*" @change="loadFile" />
+      </label>
+
+      <label v-if="lyricScore !== null && finalScore === null " class="ml-3 px-3 py-2 rounded bg-green-600 text-white inline-flex items-center">
+        Lyric score: {{ lyricScore }}%
       </label>
 
       <label v-if="finalScore !== null" class="ml-3 px-3 py-2 rounded bg-green-600 text-white inline-flex items-center">
