@@ -1,9 +1,26 @@
+import { defineStore } from "pinia"
 import { DrawOptions, MidiNote, NoteScore, pitchData, ScoreOptions, ScoreResult, SegNote } from "./types"
+import { ref } from "vue"
 
 
 function isValidNumber(v: any): v is number {
   return typeof v === 'number' && !Number.isNaN(v) && isFinite(v)
 }
+
+// export const usePitchStore = defineStore("pitch", () => {
+//   const allNotes = ref<MidiNote[] | null>(null)
+//   const history = ref<pitchData[]>([])
+//   const segNotes = ref<SegNote[]>([])
+
+//   const currentTime = ref(0)
+//   const currentSegNote = ref<SegNote | null>(null)
+//   const currentPitches = ref<pitchData[]>([])
+
+//   return {
+//     visibleNotes,
+//     groups,
+//   }
+// })
 
 // 将visibleNotes按照是否重叠分割成多个多个groups
 function GroupNotes(visibleNotes: MidiNote[]): MidiNote[][] {
@@ -31,6 +48,7 @@ function GroupNotes(visibleNotes: MidiNote[]): MidiNote[][] {
       }
     }
   }
+  groups.push(group)
   return groups
 }
 
