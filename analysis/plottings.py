@@ -24,7 +24,7 @@ def _mmss(x, pos=None):
   s = int(x) % 60
   return f"{m:02d}:{s:02d}"
 
-def plot_y_time(y: ArrayLike, sr: int, name: str = None):
+def plot_y_time(y: ArrayLike, sr: float, name: str | None = None):
   # PROMPT: making a plot, x is time (considering sr), y is y
   # PROMPT: now x is seconds from zero, please use `mm:ss``
   # plot with time on x-axis (seconds), formatted as mm:ss
@@ -39,7 +39,7 @@ def plot_y_time(y: ArrayLike, sr: int, name: str = None):
   ax.xaxis.set_major_formatter(FuncFormatter(_mmss))
   fig.tight_layout()
 
-def show_pitch(pitches: np.ndarray, sr: int, max_duration: float | None = None):
+def show_pitch(pitches: np.ndarray, sr: float, max_duration: float | None = None):
   import librosa
   fig, ax = plt.subplots(figsize=(12, 8))
   plt.subplots_adjust(bottom=0.25)  # 留出滑块空间
@@ -50,7 +50,7 @@ def show_pitch(pitches: np.ndarray, sr: int, max_duration: float | None = None):
   ax.plot(times, pitches, 'b-', linewidth=1.5, alpha=0.8)
 
   # 设置坐标轴
-  ax.set_ylim(librosa.note_to_hz('C2') * 0.9, librosa.note_to_hz('C6') * 1.1)
+  ax.set_ylim(librosa.note_to_hz('C2') * 0.9, librosa.note_to_hz('C6') * 1.1) # type:ignore
   if max_duration:
     ax.set_xlim(0, max(max_duration, duration))  # 初始显示20秒或整首歌（取较小值）
   ax.set_ylabel('音高 (Hz)')
@@ -63,7 +63,7 @@ def show_pitch(pitches: np.ndarray, sr: int, max_duration: float | None = None):
   # 添加音符参考线（C4到B5）
   for octave in range(4, 6):
     for i, note in enumerate(note_names):
-      hz = librosa.note_to_hz(f"{note}{octave}")
+      hz = librosa.note_to_hz(f"{note}{octave}") # type: float # type:ignore
       ax.axhline(y=hz, color='lightgray', linestyle='--', alpha=0.5)
       # 在右侧显示音符名称
       ax.text(ax.get_xlim()[1] * 1.01, hz, f"{note}{octave}",
@@ -72,7 +72,7 @@ def show_pitch(pitches: np.ndarray, sr: int, max_duration: float | None = None):
 
   fig.tight_layout()
 
-def show_mel(y: ArrayLike, sr: int, name: str = None):
+def show_mel(y: ArrayLike, sr: float, name: str | None = None):
   import librosa
 
   if not isinstance(y, np.ndarray):

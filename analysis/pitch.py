@@ -30,7 +30,7 @@ def _save_pitch_analysis(pitches: np.ndarray, voiced_flag: np.ndarray, voiced_pr
            voiced_flag=voiced_flag, voiced_prob=voiced_prob, rms=rms)
 
 
-def get_audio_pitches(y: np.ndarray, sr: int, hop_length: int = 512, audio_path: Path | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def get_audio_pitches(y: np.ndarray, sr: float, hop_length: int = 512, audio_path: Path | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
   """
   返回 (pitches, voiced_flag, voiced_prob, rms, sr, duration)
   pitches: 每帧频率(Hz)或 NaN
@@ -46,14 +46,15 @@ def get_audio_pitches(y: np.ndarray, sr: int, hop_length: int = 512, audio_path:
   else:
     pitches, voiced_flag, voiced_prob = librosa.pyin(
         y,
-        fmin=librosa.note_to_hz('C2'),  # 最低检测音高
-        fmax=librosa.note_to_hz('C6'),  # 最高检测音高
+        fmin=float(librosa.note_to_hz('C2')),  # 最低检测音高
+        fmax=float(librosa.note_to_hz('C6')),  # 最高检测音高
         sr=sr,
         hop_length=hop_length,
     )
     # 计算与 frames 对齐的 rms（使用相同 hop_length）
     rms = librosa.feature.rms(y=y, hop_length=hop_length).flatten()
-    _save_pitch_analysis(pitches, voiced_flag, voiced_prob, rms, cache_path)
+    if cache_path:
+      _save_pitch_analysis(pitches, voiced_flag, voiced_prob, rms, cache_path)
 
   plot_y_time(pitches, sr=sr/hop_length, name="音高 (Hz)")
   plot_y_time(voiced_prob, sr=sr/hop_length, name="音高置信度")
@@ -64,7 +65,7 @@ def get_audio_pitches(y: np.ndarray, sr: int, hop_length: int = 512, audio_path:
 # %%
 
 
-def pitch_to_midi_notes(pitches: np.ndarray, rms: np.ndarray, sr: int, hop_length: int = 512):
+def pitch_to_midi_notes(pitches: np.ndarray, rms: np.ndarray, sr: float, hop_length: int = 512):
   """
   将帧级别的频率数组转换为带持续时间和 velocity 的 MIDI 音符列表。
   返回列表项为 (start_time, end_time, midi_note, velocity)
@@ -118,7 +119,7 @@ def notes_to_midi(notes: list[tuple[float, float, int, int]], output_path: Path,
   for item in notes:
     # 支持两种格式: (start,end,note) 或 (start,end,note,velocity)
     if len(item) == 3:
-      start, end, note = item
+      start, end, note = item # type: ignore
       velocity = 64
     else:
       start, end, note, velocity = item
@@ -145,7 +146,7 @@ def notes_to_midi(notes: list[tuple[float, float, int, int]], output_path: Path,
 
 def mp3_to_midi(audio_path: Path):
   y, sr = librosa.load(str(audio_path), sr=None)
-  pitches, _, _, rms = get_audio_pitches(y, sr, name=audio_path.name)
+  pitches, _, _, rms = get_audio_pitches(y, sr, audio_path=audio_path)
   notes = pitch_to_midi_notes(pitches, rms, sr)
   midi_path = audio_path.with_suffix('.mid')
   notes_to_midi(notes, midi_path)

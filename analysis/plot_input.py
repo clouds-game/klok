@@ -74,7 +74,7 @@ class AudioStream:
 
   @property
   def sr(self):
-    return self.samplerate / self.downsample
+    return self.samplerate // self.downsample
 
   @property
   def ring_buffer(self):
@@ -201,7 +201,7 @@ class Plotting:
 
     fig, axes = plt.subplots(2, 1)
     self.figure = fig
-    self.axes = axes # type: Axes
+    self.axes = axes # type: list[Axes]
     self.lines = Plotting.plot_line(axes[0], self.stream.y, sr=stream.y_sr)
     # Mel spectrogram image artist (initialize with current buffer)
     self.mel_im = Plotting.plot_mel(axes[1], self.stream.S_dB, sr=stream.sr)
@@ -232,7 +232,7 @@ class Plotting:
 
   def update_line(self):
     for (line, data) in zip(self.lines, self.stream.y):
-      line.set_ydata(data[-len(line.get_ydata()):])
+      line.set_ydata(data[-len(line.get_ydata()):]) # type: ignore
     return self.lines
 
   def update_mel(self):
@@ -244,7 +244,7 @@ class Plotting:
       self.mel_im.set_clim(vmin=S_dB.min(), vmax=S_dB.max())
     except Exception:
       # If the image artist was not created for any reason, recreate it on the axes
-      ax = self.axes[1] # type: Axes
+      ax = self.axes[1]
       ax.clear()
       self.mel_im = Plotting.plot_mel(ax, S_dB, sr=self.stream.sr)
     return [self.mel_im]
@@ -261,7 +261,7 @@ class Plotting:
 if __name__ == "__main__":
   device_info = sd.query_devices(None, 'input')
   print("device_info:", device_info)
-  samplerate = device_info['default_samplerate']
+  samplerate = int(device_info['default_samplerate']) # type: ignore
   stream = AudioStream(samplerate=samplerate)
   info = AudioStreamInfo(stream=stream, duration_ms=5000, resample=882, n_mels=64, max_freq=8000)
   # Periodically update info in background to keep spectrograms fresh.
