@@ -5,9 +5,11 @@ import Lyrics from './components/Lyrics.vue'
 import MidiView from './components/MidiView.vue'
 import Playlist from './components/Playlist.vue'
 import { useAppState } from './utils/state'
-import { scoreNotes } from './utils/pitch'
+import { scoreNotes } from './utils/draw'
+import { usePitchStore } from './utils/pitch'
 
 const state = useAppState()
+const pitchState = usePitchStore()
 // store is used directly (Pinia store properties)
 
 
@@ -17,7 +19,7 @@ const finalScore = ref<number | null>(null)
 const lyricScore = ref<number | null>(null)
 
 function handleEnded() {
-  const res = scoreNotes(state.notes, state.pitchHistory)
+  const res = scoreNotes(state.notes, pitchState.pitchHistory)
   finalScore.value = Math.round((res.overall || 0) * 100)
 }
 
@@ -41,11 +43,11 @@ onMounted(async () => {
   console.log('Initial playlist finish')
   state.fileUrl = state.playList[0]?.url
   state.lyricsGlobalDelta = -0.8
-  state.startPitchPolling()
+  pitchState.startPitchPolling()
 })
 
 onUnmounted(() => {
-  state.stopPitchPolling()
+  pitchState.stopPitchPolling()
 })
 
 function handleShortcuts(e: KeyboardEvent): boolean {
@@ -90,7 +92,7 @@ watch(() => state.activeIndex, () => {
   const left = state.lyrics[state.activeIndex - 1]?.time || 0
   const right = state.lyrics[state.activeIndex]?.time || 0
   const lyricNotes = state.notes?.filter(n => n.start >= left && n.start + n.duration < right) || []
-  const res = scoreNotes(lyricNotes, state.pitchHistory)
+  const res = scoreNotes(lyricNotes, pitchState.pitchHistory)
   lyricScore.value = Math.round((res.overall || 0) * 100)
 })
 
@@ -136,7 +138,7 @@ watch(() => state.activeIndex, () => {
         <Lyrics :lyrics="state.lyrics" :activeIndex="state.activeIndex" @seek-to="t => state.seekTo(t)" />
       </div>
       <div class="flex-1 mt-4 h-[20vh]">
-        <MidiView :notes="state.notes || []" :left_time="state.activeLeftTime" :right_time="state.activeRightTime" />
+        <MidiView :notes="state.notes || []" :segNotes="pitchState.currentSegNotes" :left_time="state.activeLeftTime" :right_time="state.activeRightTime" />
       </div>
     </section>
   </main>
